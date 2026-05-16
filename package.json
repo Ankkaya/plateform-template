@@ -1,0 +1,11 @@
+{
+  "name": "platform-template",
+  "private": true,
+  "packageManager": "pnpm@10.26.2",
+  "scripts": {
+    "generate:module": "node scripts/generate-module.mjs",
+    "test:generator": "node --test scripts/generate-module.test.mjs",
+    "test:table-columns": "node --experimental-strip-types frontend/src/utils/table-column-settings.test.mjs",
+    "test:auth-refresh": "node --experimental-strip-types frontend/src/utils/auth-refresh.test.mjs"
+  }
+}

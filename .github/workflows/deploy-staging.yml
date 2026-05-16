@@ -1,0 +1,76 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Deploy to staging server
+        uses: appleboy/ssh-action@v1
+        env:
+          # 测试环境从 GitHub Environment: staging 读取独立服务器配置
+          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR }}
+          REPO_URL: git@github.com:${{ github.repository }}.git
+          BRANCH: main
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          envs: TARGET_DIR,REPO_URL,BRANCH
+          script: |
+            set -e
+
+            # 1. 拉取最新代码
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+              mkdir -p "$TARGET_DIR"
+              git clone -b "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+            fi
+            cd "$TARGET_DIR"
+            git fetch origin
+            git reset --hard "origin/$BRANCH"
+
+            # 2. 构建镜像（测试环境配置）
+            docker compose -f docker-compose.yaml -f docker-compose.staging.yaml build
+
+            # 3. 启动数据库
+            docker compose -f docker-compose.yaml -f docker-compose.staging.yaml up -d db
+
+            # 4. 等待数据库就绪
+            echo "Waiting for database..."
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.yaml -f docker-compose.staging.yaml exec -T db pg_isready -U postgres > /dev/null 2>&1; then
+                echo "Database is ready!"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+
+            # 5. 执行数据库迁移
+            docker compose -f docker-compose.yaml -f docker-compose.staging.yaml run --rm backend npx prisma migrate deploy
+
+            # 6. 测试环境：执行 seed（可重置测试数据）
+            docker compose -f docker-compose.yaml -f docker-compose.staging.yaml run --rm backend npx prisma db seed
+
+            # 7. 启动所有服务
+            docker compose -f docker-compose.yaml -f docker-compose.staging.yaml up -d
+
+            # 8. 健康检查
+            echo "Performing health check..."
+            for i in $(seq 1 15); do
+              if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
+                echo "✅ Staging deployment successful!"
+                exit 0
+              fi
+              echo "Waiting for backend... ($i/15)"
+              sleep 3
+            done
+
+            echo "❌ Health check failed!"
+            exit 1

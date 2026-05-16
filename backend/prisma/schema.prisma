@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== RBAC 核心 ====================
+
+// 用户模型
+model User {
+  id        Int       @id @default(autoincrement())
+  username  String    @unique
+  email     String?   @unique
+  password  String
+  name      String?
+  avatarUrl String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // 软删除标记
+
+  // 用户与角色多对多关系
+  roles     Role[]    @relation("UserRoles")
+
+  @@index([deletedAt])
+}
+
+// 角色模型
+model Role {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  code        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // 软删除标记
+
+  // 角色与用户多对多关系
+  users       User[]    @relation("UserRoles")
+  // 角色与菜单多对多关系
+  menus       Menu[]    @relation("RoleMenus")
+
+  @@index([deletedAt])
+}
+
+// 菜单模型（树形结构）
+model Menu {
+  id          Int       @id @default(autoincrement())
+  name        String
+  path        String?
+  icon        String?
+  component   String?
+  redirect    String?
+  permission  String?
+  parentId    Int?
+  order       Int       @default(0)
+  hidden      Boolean   @default(false)
+  alwaysShow  Boolean   @default(false)
+  type        String    @default("menu") // menu | button | iframe
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // 软删除标记
+
+  // 自引用关系（树形）
+  parent      Menu?     @relation("MenuTree", fields: [parentId], references: [id])
+  children    Menu[]    @relation("MenuTree")
+
+  // 角色与菜单多对多关系
+  roles       Role[]    @relation("RoleMenus")
+
+  @@index([deletedAt])
+  @@index([permission])
+}
+
+// ==================== 系统设施 ====================
+
+// 系统配置 KV
+model SystemSetting {
+  id          Int       @id @default(autoincrement())
+  key         String    @unique
+  name        String
+  value       Json
+  category    String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 数据字典类型
+model DictionaryType {
+  id          Int       @id @default(autoincrement())
+  name        String
+  code        String    @unique
+  description String?
+  isEnabled   Boolean   @default(true)
+  sort        Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  items       DictionaryItem[]
+
+  @@index([deletedAt])
+  @@index([isEnabled])
+  @@index([sort])
+}
+
+// 数据字典项
+model DictionaryItem {
+  id          Int            @id @default(autoincrement())
+  typeId      Int
+  label       String
+  value       String
+  color       String?
+  isEnabled   Boolean        @default(true)
+  sort        Int            @default(0)
+  remark      String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  type        DictionaryType @relation(fields: [typeId], references: [id])
+
+  @@index([typeId])
+  @@index([deletedAt])
+  @@index([isEnabled])
+  @@index([sort])
+}
+
+// 操作日志
+model OperationLog {
+  id          Int       @id @default(autoincrement())
+  userId      Int?
+  username    String?
+  action      LogAction
+  module      String?
+  target      String?
+  targetId    String?
+  targetType  String?
+  description String?
+  method      String?
+  path        String?
+  ip          String?
+  userAgent   String?
+  statusCode  Int?
+  duration    Int?      // 耗时 ms
+  requestBody String?
+  oldValue    Json?
+  newValue    Json?
+  response    String?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([module])
+}
+
+// 登录日志
+model LoginLog {
+  id        Int          @id @default(autoincrement())
+  userId    Int?
+  username  String?
+  type      LoginLogType
+  ip        String?
+  userAgent String?
+  success   Boolean      @default(true)
+  message   String?
+  createdAt DateTime     @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// 上传记录
+model UploadRecord {
+  id           Int      @id @default(autoincrement())
+  userId       Int?
+  username     String?
+  originalName String
+  storedName   String
+  mimeType     String?
+  size         Int?     // bytes
+  bucket       String?
+  objectKey    String?
+  url          String?
+  module       String?
+  refId        String?
+  refType      String?
+  status       String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([module])
+  @@index([refId])
+}
+
+// ==================== 枚举 ====================
+
+enum LogAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  OTHER
+}
+
+enum LoginLogType {
+  LOGIN
+  LOGOUT
+  REFRESH
+  REGISTER
+}

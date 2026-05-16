@@ -1,0 +1,86 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    # 正式环境保留 environment 配置，用于审批流程
+    environment: production
+
+    steps:
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1
+        env:
+          # 正式环境从 GitHub Environment: production 读取独立服务器配置
+          TARGET_DIR: ${{ secrets.SSH_TARGET_DIR }}
+          REPO_URL: git@github.com:${{ github.repository }}.git
+          BRANCH: master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: TARGET_DIR,REPO_URL,BRANCH
+          script: |
+            set -e
+
+            # 1. 拉取最新代码
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+              mkdir -p "$TARGET_DIR"
+              git clone -b "$BRANCH" "$REPO_URL" "$TARGET_DIR"
+            fi
+            cd "$TARGET_DIR"
+            git fetch origin
+            git reset --hard "origin/$BRANCH"
+
+            # 2. 备份当前运行的镜像标签（用于回滚）
+            BACKUP_TAG="rollback-$(date +%Y%m%d%H%M%S)"
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml images --quiet | while read img; do
+              docker tag "$img" "${img}:${BACKUP_TAG}" 2>/dev/null || true
+            done
+            echo "Backup tag: ${BACKUP_TAG}"
+
+            # 3. 构建镜像（正式环境配置）
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml build
+
+            # 4. 启动数据库（如果尚未启动）
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml up -d db
+
+            # 5. 等待数据库就绪
+            echo "Waiting for database..."
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.yaml -f docker-compose.production.yaml exec -T db pg_isready -U postgres > /dev/null 2>&1; then
+                echo "Database is ready!"
+                break
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 2
+            done
+
+            # 6. 执行数据库迁移（⚠️ 正式环境不执行 seed）
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml run --rm backend npx prisma migrate deploy
+
+            # 7. 启动所有服务
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml up -d
+
+            # 8. 健康检查
+            echo "Performing health check..."
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
+                echo "✅ Production deployment successful!"
+                exit 0
+              fi
+              echo "Waiting for backend... ($i/20)"
+              sleep 3
+            done
+
+            echo "❌ Health check failed! Attempting rollback..."
+
+            # 9. 回滚：停止当前容器
+            docker compose -f docker-compose.yaml -f docker-compose.production.yaml down
+            echo "⚠️ Rollback required. Manual intervention needed."
+            echo "Previous backup tag: ${BACKUP_TAG}"
+            exit 1
