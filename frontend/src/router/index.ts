@@ -19,7 +19,7 @@ const router = createRouter({
         {
           path: 'dashboard',
           name: 'dashboard',
-          component: () => import('@/views/layout/components/Dashboard.vue'),
+          component: () => import('@/views/dashboard/index.vue'),
           meta: { title: '首页' }
         }
       ]
@@ -33,43 +33,43 @@ const router = createRouter({
         {
           path: 'users',
           name: 'system-users',
-          component: () => import('@/views/users/index.vue'),
+          component: () => import('@/views/system/users/index.vue'),
           meta: { title: '用户管理', permission: 'system:user:view' }
         },
         {
           path: 'roles',
           name: 'system-roles',
-          component: () => import('@/views/roles/index.vue'),
+          component: () => import('@/views/system/roles/index.vue'),
           meta: { title: '角色管理', permission: 'system:role:view' }
         },
         {
           path: 'menus',
           name: 'system-menus',
-          component: () => import('@/views/menus/index.vue'),
+          component: () => import('@/views/system/menus/index.vue'),
           meta: { title: '菜单管理', permission: 'system:menu:view' }
         },
         {
           path: 'settings',
           name: 'system-settings',
-          component: () => import('@/views/system-settings/index.vue'),
+          component: () => import('@/views/system/settings/index.vue'),
           meta: { title: '系统配置', permission: 'system:setting:view' }
         },
         {
           path: 'dictionaries',
           name: 'system-dictionaries',
-          component: () => import('@/views/dictionaries/index.vue'),
+          component: () => import('@/views/system/dictionaries/index.vue'),
           meta: { title: '字典管理', permission: 'system:dictionary:view' }
         },
         {
           path: 'logs',
           name: 'system-logs',
-          component: () => import('@/views/system-logs/index.vue'),
+          component: () => import('@/views/system/logs/index.vue'),
           meta: { title: '操作日志', permission: 'system:log:view' }
         },
         {
           path: 'upload-records',
           name: 'upload-records',
-          component: () => import('@/views/upload-records/index.vue'),
+          component: () => import('@/views/system/upload-records/index.vue'),
           meta: { title: '上传记录', permission: 'system:upload-record:view' }
         }
       ]

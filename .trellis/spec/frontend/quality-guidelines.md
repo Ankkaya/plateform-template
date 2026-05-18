@@ -106,7 +106,7 @@ if (isKnownRoutePath(path) && authStore.canAccessMenuPath(path)) {
 - API-specific types: `src/types/api/dictionary.api.ts`.
 
 ### 3. Contracts
-- Backend menu seed path must be `/system/dictionaries` and component must be `views/dictionaries/index`.
+- Backend menu seed path must be `/system/dictionaries` and component must be `views/system/dictionaries/index`.
 - Page action buttons must use `authStore.hasPermission(...)` with dictionary button permissions.
 - Dictionary type list response uses `{ list, total, page, pageSize }`, not `items`.
 - Dictionary item lists are scoped to the selected dictionary type.
@@ -227,7 +227,7 @@ When adding a test framework later, start with:
 - Trigger: Updating `/system/users` to manage admin-created user passwords.
 
 ### 2. Signatures
-- Page: `src/views/users/index.vue`
+- Page: `src/views/system/users/index.vue`
 - API client: `src/api/user.ts`
 - Request types: `ResetUserPasswordDto`, `ResetUserPasswordParams`
 

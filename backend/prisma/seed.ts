@@ -79,13 +79,13 @@ async function main() {
   });
 
   const menuItems = [
-    { id: 10, name: '用户管理', path: '/system/users', icon: 'material-symbols:person-outline', component: 'views/users/index', permission: 'system:user:view', parentId: systemMenu.id, order: 1 },
-    { id: 11, name: '角色管理', path: '/system/roles', icon: 'material-symbols:groups-outline', component: 'views/roles/index', permission: 'system:role:view', parentId: systemMenu.id, order: 2 },
-    { id: 12, name: '菜单管理', path: '/system/menus', icon: 'material-symbols:menu', component: 'views/menus/index', permission: 'system:menu:view', parentId: systemMenu.id, order: 3 },
-    { id: 13, name: '系统配置', path: '/system/settings', icon: 'material-symbols:tune', component: 'views/system-settings/index', permission: 'system:setting:view', parentId: systemMenu.id, order: 4 },
-    { id: 14, name: '操作日志', path: '/system/logs', icon: 'material-symbols:history-rounded', component: 'views/system-logs/index', permission: 'system:log:view', parentId: systemMenu.id, order: 5 },
-    { id: 15, name: '上传记录', path: '/system/upload-records', icon: 'mdi:cloud-upload-outline', component: 'views/upload-records/index', permission: 'system:upload-record:view', parentId: systemMenu.id, order: 6 },
-    { id: 16, name: '字典管理', path: '/system/dictionaries', icon: 'material-symbols:format-list-bulleted', component: 'views/dictionaries/index', permission: 'system:dictionary:view', parentId: systemMenu.id, order: 7 },
+    { id: 10, name: '用户管理', path: '/system/users', icon: 'material-symbols:person-outline', component: 'views/system/users/index', permission: 'system:user:view', parentId: systemMenu.id, order: 1 },
+    { id: 11, name: '角色管理', path: '/system/roles', icon: 'material-symbols:groups-outline', component: 'views/system/roles/index', permission: 'system:role:view', parentId: systemMenu.id, order: 2 },
+    { id: 12, name: '菜单管理', path: '/system/menus', icon: 'material-symbols:menu', component: 'views/system/menus/index', permission: 'system:menu:view', parentId: systemMenu.id, order: 3 },
+    { id: 13, name: '系统配置', path: '/system/settings', icon: 'material-symbols:tune', component: 'views/system/settings/index', permission: 'system:setting:view', parentId: systemMenu.id, order: 4 },
+    { id: 14, name: '操作日志', path: '/system/logs', icon: 'material-symbols:history-rounded', component: 'views/system/logs/index', permission: 'system:log:view', parentId: systemMenu.id, order: 5 },
+    { id: 15, name: '上传记录', path: '/system/upload-records', icon: 'mdi:cloud-upload-outline', component: 'views/system/upload-records/index', permission: 'system:upload-record:view', parentId: systemMenu.id, order: 6 },
+    { id: 16, name: '字典管理', path: '/system/dictionaries', icon: 'material-symbols:format-list-bulleted', component: 'views/system/dictionaries/index', permission: 'system:dictionary:view', parentId: systemMenu.id, order: 7 },
   ];
 
   for (const item of menuItems) {

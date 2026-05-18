@@ -44,15 +44,15 @@ For a new business page:
 5. Add or seed a backend `Menu` row with the same `path`.
 
 Examples:
-- `src/views/users/index.vue` + `src/api/user.ts`
-- `src/views/roles/index.vue` + `src/api/roles.ts`
-- `src/views/system-logs/index.vue` + `src/api/system-logs.ts`
+- `src/views/system/users/index.vue` + `src/api/user.ts`
+- `src/views/system/roles/index.vue` + `src/api/roles.ts`
+- `src/views/system/logs/index.vue` + `src/api/system-logs.ts`
 
 ---
 
 ## Naming Conventions
 
-- Vue pages use directory `index.vue`: `views/users/index.vue`.
+- Vue pages use directory `index.vue`: `views/system/users/index.vue`.
 - Shared components use PascalCase filenames: `SmartFormContainer.vue`, `IconPicker.vue`.
 - API files use kebab-case or singular resource names matching existing usage: `system-logs.ts`, `upload-records.ts`, `user.ts`.
 - Store modules live under `store/modules/<name>` or `store/modules/<name>.ts`.

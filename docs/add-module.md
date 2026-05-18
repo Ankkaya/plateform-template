@@ -329,7 +329,7 @@ export function deleteBrand(id: number) {
 
 ## 5. 前端：添加页面
 
-创建 `frontend/src/views/brands/index.vue`，参考已有的 `views/users/index.vue` 的列表 + 弹窗模式。
+创建 `frontend/src/views/brands/index.vue`，参考已有的 `views/system/users/index.vue` 的列表 + 弹窗模式。
 
 核心结构：
 - `NDataTable` 列表
