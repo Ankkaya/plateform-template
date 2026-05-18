@@ -173,7 +173,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, h, type VNode } from 'vue'
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
-import { NAvatar, NButton, NIcon, NSpace } from 'naive-ui'
+import { NAvatar, NButton, NIcon, NImage, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
 import { AddOutline } from '@vicons/ionicons5'
 import {
@@ -298,13 +298,27 @@ const createColumns = (): DataTableColumns<User> => {
     {
       title: '头像',
       key: 'avatarUrl',
-      render: (row) => h(NAvatar, {
-        round: true,
-        size: 36,
-        src: row.avatarUrl ? resolveFileUrl(row.avatarUrl) : undefined,
-      }, {
-        default: () => row.name?.slice(0, 1) || row.username.slice(0, 1) || 'U'
-      })
+      render: (row) => {
+        if (row.avatarUrl) {
+          return h(NImage, {
+            src: resolveFileUrl(row.avatarUrl),
+            alt: row.name || row.username,
+            width: 36,
+            height: 36,
+            objectFit: 'cover',
+            imgProps: {
+              class: 'user-table-avatar',
+            },
+          })
+        }
+
+        return h(NAvatar, {
+          round: true,
+          size: 36,
+        }, {
+          default: () => row.name?.slice(0, 1) || row.username.slice(0, 1) || 'U'
+        })
+      }
     },
     { title: '用户名', key: 'username' },
     {
@@ -679,6 +693,14 @@ onBeforeUnmount(() => {
 .avatar-picker__image {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+}
+
+.user-table-avatar {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
   object-fit: cover;
 }
 </style>

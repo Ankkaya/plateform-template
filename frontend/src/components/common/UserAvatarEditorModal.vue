@@ -12,6 +12,9 @@
           ref="viewportRef"
           class="avatar-editor__viewport"
           @pointerdown="handleViewportPointerDown"
+          @pointermove="handlePointerMove"
+          @pointerup="handlePointerUp"
+          @pointercancel="handlePointerUp"
         >
           <img
             v-if="sourceUrl"
@@ -27,7 +30,6 @@
           <div
             class="avatar-editor__crop-box"
             :style="cropBoxStyle"
-            @pointerdown.stop="handleCropPointerDown"
           >
             <span
               v-for="handle in cropHandles"
@@ -132,7 +134,7 @@ const cropBox = reactive({
 })
 
 let activePointerId: number | null = null
-let activePointerMode: 'image' | 'crop' | 'resize' | null = null
+let activePointerMode: 'image' | 'resize' | null = null
 let activeResizeHandle: ResizeHandle | null = null
 const pointerStart = reactive({
   x: 0,
@@ -273,7 +275,7 @@ function releasePointerCapture() {
   activeResizeHandle = null
 }
 
-function startPointer(event: PointerEvent, mode: 'image' | 'crop' | 'resize', handle?: ResizeHandle) {
+function startPointer(event: PointerEvent, mode: 'image' | 'resize', handle?: ResizeHandle) {
   activePointerId = event.pointerId
   activePointerMode = mode
   activeResizeHandle = handle ?? null
@@ -292,10 +294,6 @@ function handleViewportPointerDown(event: PointerEvent) {
     return
   }
   startPointer(event, 'image')
-}
-
-function handleCropPointerDown(event: PointerEvent) {
-  startPointer(event, 'crop')
 }
 
 function handleResizePointerDown(event: PointerEvent, handle: ResizeHandle) {
@@ -363,13 +361,6 @@ function handlePointerMove(event: PointerEvent) {
   if (activePointerMode === 'image') {
     imagePosition.x = pointerStart.imageX + deltaX
     imagePosition.y = pointerStart.imageY + deltaY
-    drawPreview()
-    return
-  }
-
-  if (activePointerMode === 'crop') {
-    cropBox.x = clamp(pointerStart.cropX + deltaX, 0, imageMetrics.viewportWidth - cropBox.size)
-    cropBox.y = clamp(pointerStart.cropY + deltaY, 0, imageMetrics.viewportHeight - cropBox.size)
     drawPreview()
     return
   }
@@ -451,34 +442,7 @@ watch(
   },
 )
 
-watch(
-  () => props.show,
-  (visible) => {
-    const target = viewportRef.value
-    if (!target) {
-      return
-    }
-
-    if (visible) {
-      target.addEventListener('pointermove', handlePointerMove)
-      target.addEventListener('pointerup', handlePointerUp)
-      target.addEventListener('pointercancel', handlePointerUp)
-      return
-    }
-
-    target.removeEventListener('pointermove', handlePointerMove)
-    target.removeEventListener('pointerup', handlePointerUp)
-    target.removeEventListener('pointercancel', handlePointerUp)
-    releasePointerCapture()
-  },
-  { immediate: true },
-)
-
 onBeforeUnmount(() => {
-  const target = viewportRef.value
-  target?.removeEventListener('pointermove', handlePointerMove)
-  target?.removeEventListener('pointerup', handlePointerUp)
-  target?.removeEventListener('pointercancel', handlePointerUp)
   releasePointerCapture()
 })
 </script>
@@ -536,7 +500,7 @@ onBeforeUnmount(() => {
   left: 0;
   border: 2px solid var(--n-primary-color, #2080f0);
   box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42);
-  cursor: move;
+  pointer-events: none;
 }
 
 .avatar-editor__crop-box::before,
@@ -570,6 +534,7 @@ onBeforeUnmount(() => {
   background: var(--n-primary-color, #2080f0);
   border: 2px solid white;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
+  pointer-events: auto;
 }
 
 .avatar-editor__handle--top-left {

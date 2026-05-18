@@ -267,6 +267,8 @@ When adding a test framework later, start with:
 - The avatar field trigger should stay visually minimal: use the image-picker box itself as the primary entry, avoid duplicate "选择头像" buttons, and keep only a short format-support hint beneath it.
 - The empty image-picker state should use a plus-style icon without placeholder text or decorative grid text.
 - The avatar editor should provide a visible crop box with draggable/resizable handles, and footer actions should use Naive UI buttons so they inherit theme changes correctly.
+- The avatar editor should center the selected image by default, fit the image's longest side into the edit viewport, allow dragging the image position, and allow resizing the crop box from visible handles.
+- User list rows with `avatarUrl` should render a fixed-size clickable preview image; only rows without `avatarUrl` should fall back to text avatars.
 - The create/edit form should keep the edited avatar as a local preview first, then upload it only when the user submits the form successfully.
 - The create flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `POST /users`.
 - The edit flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
