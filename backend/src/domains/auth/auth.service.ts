@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 import { CryptoKeysService } from './services/crypto-keys.service';
 import { LoginThrottleService } from './services/login-throttle.service';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
+import { RedisService } from '@/infrastructure/redis/redis.service';
 import { LoginLogType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -17,11 +18,12 @@ export class AuthService {
     private readonly cryptoKeys: CryptoKeysService,
     private readonly loginThrottle: LoginThrottleService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
-    return { user, ...this.generateAuthTokens(user.id) };
+    return { user, ...(await this.generateAuthTokens(user.id)) };
   }
 
   async login(loginDto: LoginDto, ip = 'unknown', userAgent?: string) {
@@ -73,7 +75,7 @@ export class AuthService {
       },
     });
 
-    return { user: result, ...this.generateAuthTokens(user.id) };
+    return { user: result, ...(await this.generateAuthTokens(user.id)) };
   }
 
   generateToken(userId: number): string {
@@ -89,18 +91,27 @@ export class AuthService {
     });
   }
 
-  generateAuthTokens(userId: number) {
-    return {
-      token: this.generateToken(userId),
-      refreshToken: this.generateRefreshToken(userId),
-    };
+  async generateAuthTokens(userId: number) {
+    const token = this.generateToken(userId);
+    const refreshToken = this.generateRefreshToken(userId);
+    await this.cacheTokenPair(userId, token, refreshToken);
+    return { token, refreshToken };
   }
 
   async verifyRefreshToken(refreshToken: string): Promise<{ sub: number }> {
     try {
-      return await this.jwtService.verifyAsync(refreshToken, {
+      const payload = await this.jwtService.verifyAsync<{ sub: number }>(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
       });
+      const isValid = await this.redis.validateToken(
+        payload.sub,
+        refreshToken,
+        'refresh',
+      );
+      if (!isValid) {
+        throw new UnauthorizedException('刷新令牌无效或已过期');
+      }
+      return payload;
     }
     catch {
       throw new UnauthorizedException('刷新令牌无效或已过期');
@@ -164,6 +175,30 @@ export class AuthService {
       },
     });
 
-    return { user, ...this.generateAuthTokens(user.id) };
+    return { user, ...(await this.generateAuthTokens(user.id)) };
+  }
+
+  async logout(userId: number): Promise<{ success: true }> {
+    await this.redis.deleteUserTokens(userId);
+    return { success: true };
+  }
+
+  private async cacheTokenPair(
+    userId: number,
+    accessToken: string,
+    refreshToken: string,
+  ): Promise<void> {
+    await Promise.all([
+      this.redis.setToken(userId, accessToken, this.getTokenTtlSeconds(accessToken), 'access'),
+      this.redis.setToken(userId, refreshToken, this.getTokenTtlSeconds(refreshToken), 'refresh'),
+    ]);
+  }
+
+  private getTokenTtlSeconds(token: string): number {
+    const payload = this.jwtService.decode(token) as { exp?: number } | null;
+    if (!payload?.exp) {
+      throw new InternalServerErrorException('令牌缺少过期时间');
+    }
+    return Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
   }
 }

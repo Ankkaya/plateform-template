@@ -47,6 +47,14 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken, ip, userAgent);
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout and revoke cached tokens' })
+  logout(@Request() req) {
+    return this.authService.logout(req.user.userId);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -99,6 +99,64 @@ Correct:
 
 ---
 
+## Scenario: Redis-Backed Auth Token Cache
+
+### 1. Scope / Trigger
+- Trigger: Changing how access tokens, refresh tokens, logout, or route-level JWT validation interact with Redis.
+
+### 2. Signatures
+- Route: `POST /auth/login`
+- Route: `POST /auth/refresh`
+- Route: `POST /auth/logout`
+- Guard path: any endpoint protected by `JwtAuthGuard`
+- Service entries:
+  - `AuthService.generateAuthTokens(userId)`
+  - `AuthService.verifyRefreshToken(refreshToken)`
+  - `AuthService.logout(userId)`
+  - `JwtStrategy.validate(req, payload)`
+  - `RedisService.setToken(userId, token, ttl, type)`
+
+### 3. Contracts
+- Login and refresh must write the newly issued `access token` and `refresh token` to Redis immediately after signing.
+- Redis token keys are type-scoped per user: `token:access:<userId>` and `token:refresh:<userId>`.
+- Redis TTL must be derived from the signed token's actual `exp`, not from a duplicated hard-coded duration.
+- `JwtAuthGuard`-protected requests are valid only when the presented bearer token both passes JWT signature/expiry checks and matches the cached Redis access token for that user.
+- Refresh requests are valid only when the presented refresh token both passes JWT signature/expiry checks and matches the cached Redis refresh token for that user.
+- Logout must revoke both cached token types for the authenticated user.
+
+### 4. Validation & Error Matrix
+- Access token missing from Redis -> throw `UnauthorizedException('访问令牌无效或已失效')`.
+- Refresh token missing from Redis -> throw `UnauthorizedException('刷新令牌无效或已过期')`.
+- JWT verify failure for refresh token -> throw `UnauthorizedException('刷新令牌无效或已过期')`.
+- Signed token missing `exp` when caching -> throw `InternalServerErrorException('令牌缺少过期时间')`.
+- Logout for authenticated user -> delete both Redis keys and return `{ success: true }`.
+
+### 5. Good/Base/Bad Cases
+- Good: user logs in, receives a token pair, subsequent protected requests succeed, refresh rotates the cached pair, logout revokes both.
+- Base: user logs in twice; the second login overwrites the cached pair and the first access token becomes invalid at the guard layer.
+- Bad: only verifying JWT signatures without Redis comparison, which leaves replaced or revoked tokens usable until natural expiry.
+
+### 6. Tests Required
+- Run `pnpm exec tsc --noEmit` after touching auth token caching logic.
+- Run focused Jest coverage for auth service and JWT strategy.
+- Assert that registration/login/refresh cache both token types in Redis with numeric TTLs.
+- Assert that stale refresh tokens are rejected and logged with the generic refresh failure message.
+- Assert that stale access tokens are rejected inside `JwtStrategy.validate`.
+- Assert that logout deletes both Redis token keys for the current user.
+
+### 7. Wrong vs Correct
+#### Wrong
+- Sign JWTs and trust them until expiry without checking Redis.
+- Cache access and refresh tokens under the same Redis key.
+- Hard-code Redis TTL separately from JWT expiry and let the two drift.
+
+#### Correct
+- Treat Redis as the revocation source of truth for both token types.
+- Use distinct per-user keys for access and refresh tokens.
+- Derive Redis TTL from the signed token's `exp` claim so cache lifetime and JWT lifetime stay aligned.
+
+---
+
 ## Testing Requirements
 
 Add or update Jest tests when changing:

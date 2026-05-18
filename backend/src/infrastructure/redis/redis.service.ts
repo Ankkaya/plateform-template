@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 
+type TokenType = 'access' | 'refresh';
+
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private client: RedisClientType;
@@ -37,36 +39,62 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Token相关操作
-  async setToken(userId: number, token: string, ttl: number = 3600): Promise<void> {
+  async setToken(
+    userId: number,
+    token: string,
+    ttl: number = 3600,
+    type: TokenType = 'access',
+  ): Promise<void> {
     try {
-      await this.client.set(`token:${userId}`, token, { EX: ttl });
+      await this.client.set(this.buildTokenKey(userId, type), token, { EX: ttl });
     } catch (error) {
       console.error('Redis setToken error:', error);
       throw error;
     }
   }
 
-  async getToken(userId: number): Promise<string | null> {
+  async getToken(
+    userId: number,
+    type: TokenType = 'access',
+  ): Promise<string | null> {
     try {
-      return await this.client.get(`token:${userId}`);
+      return await this.client.get(this.buildTokenKey(userId, type));
     } catch (error) {
       console.error('Redis getToken error:', error);
       return null;
     }
   }
 
-  async deleteToken(userId: number): Promise<void> {
+  async deleteToken(
+    userId: number,
+    type: TokenType = 'access',
+  ): Promise<void> {
     try {
-      await this.client.del(`token:${userId}`);
+      await this.client.del(this.buildTokenKey(userId, type));
     } catch (error) {
       console.error('Redis deleteToken error:', error);
       throw error;
     }
   }
 
-  async tokenExists(userId: number): Promise<boolean> {
+  async deleteUserTokens(userId: number): Promise<void> {
     try {
-      const result = await this.client.exists(`token:${userId}`);
+      await this.client.del([
+        this.buildTokenKey(userId, 'access'),
+        this.buildTokenKey(userId, 'refresh'),
+      ]);
+    } catch (error) {
+      console.error('Redis deleteUserTokens error:', error);
+      throw error;
+    }
+  }
+
+  async tokenExists(
+    userId: number,
+    type: TokenType = 'access',
+  ): Promise<boolean> {
+    try {
+      const result = await this.client.exists(this.buildTokenKey(userId, type));
       return result === 1;
     } catch (error) {
       console.error('Redis tokenExists error:', error);
@@ -74,9 +102,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async validateToken(userId: number, token: string): Promise<boolean> {
+  async validateToken(
+    userId: number,
+    token: string,
+    type: TokenType = 'access',
+  ): Promise<boolean> {
     try {
-      const cachedToken = await this.getToken(userId);
+      const cachedToken = await this.getToken(userId, type);
       return cachedToken === token;
     } catch (error) {
       console.error('Redis validateToken error:', error);
@@ -123,5 +155,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async ttl(key: string): Promise<number> {
     return Number(await this.client.ttl(key));
+  }
+
+  private buildTokenKey(userId: number, type: TokenType): string {
+    return `token:${type}:${userId}`;
   }
 }
