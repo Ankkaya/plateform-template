@@ -30,6 +30,7 @@
           <div
             class="avatar-editor__crop-box"
             :style="cropBoxStyle"
+            @pointerdown.stop="handleCropPointerDown"
           >
             <span
               v-for="handle in cropHandles"
@@ -134,7 +135,7 @@ const cropBox = reactive({
 })
 
 let activePointerId: number | null = null
-let activePointerMode: 'image' | 'resize' | null = null
+let activePointerMode: 'image' | 'crop' | 'resize' | null = null
 let activeResizeHandle: ResizeHandle | null = null
 const pointerStart = reactive({
   x: 0,
@@ -149,7 +150,9 @@ const pointerStart = reactive({
 const imageStyle = computed(() => ({
   width: `${imageMetrics.baseWidth}px`,
   height: `${imageMetrics.baseHeight}px`,
-  transform: `translate(${imagePosition.x}px, ${imagePosition.y}px) rotate(${rotation.value}deg) scale(${scale.value * flipX.value}, ${scale.value * flipY.value})`,
+  left: `${imagePosition.x}px`,
+  top: `${imagePosition.y}px`,
+  transform: `rotate(${rotation.value}deg) scale(${scale.value * flipX.value}, ${scale.value * flipY.value})`,
 }))
 
 const cropBoxStyle = computed(() => ({
@@ -168,16 +171,19 @@ function getViewportRect() {
 
 function syncViewportMetrics() {
   const rect = getViewportRect()
-  if (!rect) {
-    return
+  if (!rect || rect.width === 0 || rect.height === 0) {
+    return false
   }
 
   imageMetrics.viewportWidth = rect.width
   imageMetrics.viewportHeight = rect.height
+  return true
 }
 
 function resetCropBox() {
-  syncViewportMetrics()
+  if (!syncViewportMetrics()) {
+    return
+  }
   const size = Math.max(
     MIN_CROP_SIZE,
     Math.min(imageMetrics.viewportWidth, imageMetrics.viewportHeight) - 72,
@@ -244,7 +250,10 @@ function loadImageState() {
     return
   }
 
-  syncViewportMetrics()
+  if (!syncViewportMetrics()) {
+    window.requestAnimationFrame(loadImageState)
+    return
+  }
 
   const naturalWidth = image.naturalWidth || 1
   const naturalHeight = image.naturalHeight || 1
@@ -275,7 +284,7 @@ function releasePointerCapture() {
   activeResizeHandle = null
 }
 
-function startPointer(event: PointerEvent, mode: 'image' | 'resize', handle?: ResizeHandle) {
+function startPointer(event: PointerEvent, mode: 'image' | 'crop' | 'resize', handle?: ResizeHandle) {
   activePointerId = event.pointerId
   activePointerMode = mode
   activeResizeHandle = handle ?? null
@@ -296,7 +305,17 @@ function handleViewportPointerDown(event: PointerEvent) {
   startPointer(event, 'image')
 }
 
+function handleCropPointerDown(event: PointerEvent) {
+  if (!imageLoaded.value) {
+    return
+  }
+  startPointer(event, 'crop')
+}
+
 function handleResizePointerDown(event: PointerEvent, handle: ResizeHandle) {
+  if (!imageLoaded.value) {
+    return
+  }
   startPointer(event, 'resize', handle)
 }
 
@@ -365,6 +384,13 @@ function handlePointerMove(event: PointerEvent) {
     return
   }
 
+  if (activePointerMode === 'crop') {
+    cropBox.x = clamp(pointerStart.cropX + deltaX, 0, imageMetrics.viewportWidth - cropBox.size)
+    cropBox.y = clamp(pointerStart.cropY + deltaY, 0, imageMetrics.viewportHeight - cropBox.size)
+    drawPreview()
+    return
+  }
+
   if (activePointerMode === 'resize') {
     resizeCropBox(deltaX, deltaY)
     cropBox.x = clamp(cropBox.x, 0, imageMetrics.viewportWidth - cropBox.size)
@@ -397,7 +423,17 @@ function rotateRight() {
 }
 
 function handleImageLoad() {
-  loadImageState()
+  window.requestAnimationFrame(loadImageState)
+}
+
+function initializeEditor() {
+  imageLoaded.value = false
+  resetEditor()
+
+  const image = imageRef.value
+  if (image?.complete && image.naturalWidth > 0) {
+    window.requestAnimationFrame(loadImageState)
+  }
 }
 
 async function handleConfirm() {
@@ -428,9 +464,8 @@ watch(
       return
     }
 
-    imageLoaded.value = false
     await nextTick()
-    resetEditor()
+    window.requestAnimationFrame(initializeEditor)
   },
   { immediate: true },
 )
@@ -500,7 +535,8 @@ onBeforeUnmount(() => {
   left: 0;
   border: 2px solid var(--n-primary-color, #2080f0);
   box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42);
-  pointer-events: none;
+  cursor: move;
+  pointer-events: auto;
 }
 
 .avatar-editor__crop-box::before,
@@ -534,7 +570,6 @@ onBeforeUnmount(() => {
   background: var(--n-primary-color, #2080f0);
   border: 2px solid white;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.22);
-  pointer-events: auto;
 }
 
 .avatar-editor__handle--top-left {
