@@ -57,28 +57,12 @@
               >
               <div v-else class="avatar-picker__placeholder">
                 <n-icon size="28">
-                  <image-outline />
+                  <add-outline />
                 </n-icon>
-                <span>选择图片</span>
               </div>
             </button>
             <div class="avatar-field__actions">
-              <n-space>
-                <n-button @click="handleAvatarTrigger">
-                  {{ formAvatarDisplayUrl ? '重新选择' : '选择头像' }}
-                </n-button>
-                <n-button
-                  v-if="formAvatarDisplayUrl"
-                  quaternary
-                  type="warning"
-                  @click="clearAvatar"
-                >
-                  清空
-                </n-button>
-              </n-space>
-              <p class="avatar-field__hint">
-                非必填。支持 JPG、PNG、WEBP、GIF、AVIF，编辑完成后仅在表单内预览，提交时才上传。
-              </p>
+              <p class="avatar-field__hint">支持 JPG、PNG、WEBP、GIF、AVIF</p>
             </div>
             <input
               ref="avatarInputRef"
@@ -191,7 +175,7 @@ import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
 import { NAvatar, NButton, NIcon, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
-import { ImageOutline } from '@vicons/ionicons5'
+import { AddOutline } from '@vicons/ionicons5'
 import {
   getUsers,
   createUser,
@@ -467,11 +451,6 @@ const clearAvatarAssets = () => {
   pendingAvatarBlob.value = null
 }
 
-const clearAvatar = () => {
-  clearAvatarAssets()
-  form.avatarUrl = null
-}
-
 const handleAvatarSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null
   const file = input?.files?.[0]
@@ -650,17 +629,17 @@ onBeforeUnmount(() => {
 <style scoped>
 .avatar-field {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
 }
 
 .avatar-field__actions {
   flex: 1;
+  padding-top: 92px;
 }
 
 .avatar-field__hint {
-  margin-top: 10px;
-  color: #64748b;
+  color: var(--n-text-color-3, #64748b);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -668,13 +647,9 @@ onBeforeUnmount(() => {
 .avatar-picker {
   width: 112px;
   height: 112px;
-  border: 1px dashed rgba(148, 163, 184, 0.8);
+  border: 1px dashed var(--n-border-color, rgba(148, 163, 184, 0.8));
   border-radius: 22px;
-  background:
-    linear-gradient(90deg, rgba(148, 163, 184, 0.22) 1px, transparent 1px),
-    linear-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px);
-  background-size: 28px 28px;
-  background-color: #f8fafc;
+  background: var(--n-color-embedded, #f8fafc);
   padding: 0;
   overflow: hidden;
   cursor: pointer;
@@ -682,27 +657,23 @@ onBeforeUnmount(() => {
 }
 
 .avatar-picker:hover {
-  border-color: #2080f0;
+  border-color: var(--n-primary-color, #2080f0);
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px rgba(32, 128, 240, 0.12);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--n-primary-color, #2080f0) 18%, transparent);
 }
 
 .avatar-picker--filled {
   border-style: solid;
-  background: #eff6ff;
+  background: var(--n-color-modal, #fff);
 }
 
 .avatar-picker__placeholder {
   width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--n-primary-color, #2080f0);
 }
 
 .avatar-picker__image {

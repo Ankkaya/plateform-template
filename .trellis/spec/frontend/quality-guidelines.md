@@ -264,6 +264,9 @@ When adding a test framework later, start with:
 - Avatar upload should reuse the existing file-upload API instead of creating a dedicated avatar endpoint.
 - Selecting an avatar should open a client-side editor modal; the page should not upload the file immediately after file selection.
 - The avatar editor should expose common adjustments such as scale/rotation/flip/offset and show the result preview beside the controls.
+- The avatar field trigger should stay visually minimal: use the image-picker box itself as the primary entry, avoid duplicate "选择头像" buttons, and keep only a short format-support hint beneath it.
+- The empty image-picker state should use a plus-style icon without placeholder text or decorative grid text.
+- The avatar editor should provide a visible crop box with draggable/resizable handles, and footer actions should use Naive UI buttons so they inherit theme changes correctly.
 - The create/edit form should keep the edited avatar as a local preview first, then upload it only when the user submits the form successfully.
 - The create flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `POST /users`.
 - The edit flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
