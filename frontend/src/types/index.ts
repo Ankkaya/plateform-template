@@ -47,6 +47,7 @@ export interface User {
   username: string
   email?: string
   avatar?: string
+  avatarUrl?: string
   name?: string
   createdAt: string
   updatedAt: string

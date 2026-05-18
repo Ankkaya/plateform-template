@@ -157,6 +157,61 @@ Correct:
 
 ---
 
+## Scenario: Auth User Payload Consistency
+
+### 1. Scope / Trigger
+- Trigger: Changing login, register, refresh, `/auth/me`, or any code path that returns the authenticated user payload to the frontend.
+
+### 2. Signatures
+- Routes:
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `POST /auth/refresh`
+  - `GET /auth/me`
+  - `GET /users/me`
+- Service entries:
+  - `AuthService.register(createUserDto)`
+  - `AuthService.login(loginDto, ip, userAgent)`
+  - `AuthService.refresh(refreshToken, ip, userAgent)`
+  - `UsersService.findById(id)`
+  - `UsersService.findUserWithRoles(userId)`
+
+### 3. Contracts
+- All auth success responses that include `user` must return the same shaped user payload used by the current-user endpoints.
+- The auth `user` payload must include `roles`, because the frontend auth store uses it immediately after login before any later refresh/init call.
+- Auth responses must use a shaped VO and must never expose `password`.
+- If role data is required, fetch or derive it from a service path that includes roles instead of returning the raw result from `findByUsername`.
+
+### 4. Validation & Error Matrix
+- Login succeeds but response omits `roles` -> frontend personal info and admin-role derivation become inconsistent until a later `/me` fetch.
+- Login succeeds and response includes `roles` -> profile dialog, menu guards, and role-aware UI can use the auth store immediately.
+- A service returns the raw Prisma user with `password` -> reject; auth response must be shaped through a VO before returning.
+
+### 5. Good/Base/Bad Cases
+- Good: `AuthService.login()` validates credentials, then returns `UsersService.findById(user.id)` plus token pair.
+- Base: a newly registered user has an empty `roles` array, but the field still exists in the auth response.
+- Bad: `AuthService.login()` strips `password` from the raw DB entity and returns that object directly, leaving out `roles`.
+
+### 6. Tests Required
+- Run `pnpm exec tsc --noEmit` after changing auth response shaping.
+- Run `pnpm test` after changing login/register/refresh payloads.
+- Keep a regression test that asserts successful login returns `user.roles` and never returns `password`.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+const { password, ...result } = user;
+return { user: result, ...(await this.generateAuthTokens(user.id)) };
+```
+
+#### Correct
+```ts
+const userWithRoles = await this.usersService.findById(user.id);
+return { user: userWithRoles, ...(await this.generateAuthTokens(user.id)) };
+```
+
+---
+
 ## Testing Requirements
 
 Add or update Jest tests when changing:

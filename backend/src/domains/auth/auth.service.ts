@@ -23,7 +23,8 @@ export class AuthService {
 
   async register(createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
-    return { user, ...(await this.generateAuthTokens(user.id)) };
+    const userWithRoles = await this.usersService.findById(user.id);
+    return { user: userWithRoles, ...(await this.generateAuthTokens(user.id)) };
   }
 
   async login(loginDto: LoginDto, ip = 'unknown', userAgent?: string) {
@@ -61,7 +62,7 @@ export class AuthService {
     // ④ 登录成功 → 清零计数
     await this.loginThrottle.reset(username, ip);
 
-    const { password, ...result } = user;
+    const userWithRoles = await this.usersService.findById(user.id);
 
     // 记录登录成功日志
     await this.prisma.loginLog.create({
@@ -75,7 +76,7 @@ export class AuthService {
       },
     });
 
-    return { user: result, ...(await this.generateAuthTokens(user.id)) };
+    return { user: userWithRoles, ...(await this.generateAuthTokens(user.id)) };
   }
 
   generateToken(userId: number): string {
