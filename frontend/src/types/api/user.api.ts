@@ -18,6 +18,7 @@ export interface CreateUserParams {
  */
 export interface UpdateUserParams {
   email?: string;
+  avatarUrl?: string | null;
   password?: string;
   name?: string;
 }

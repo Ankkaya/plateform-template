@@ -248,6 +248,57 @@ When adding a test framework later, start with:
 
 ---
 
+## Scenario: User Avatar Management
+
+### 1. Scope / Trigger
+- Trigger: Updating `/system/users` so admins can edit a managed user's avatar.
+
+### 2. Signatures
+- Page: `src/views/system/users/index.vue`
+- File API client: `src/api/file.ts`
+- User API client: `src/api/user.ts`
+- Shared request type: `UpdateUserDto` / `UpdateUserParams`
+
+### 3. Contracts
+- Avatar upload should reuse the existing file-upload API instead of creating a dedicated avatar endpoint.
+- The user edit flow must upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
+- Clearing an avatar should submit `avatarUrl: null` so the backend clears the database field.
+- Avatar preview should resolve relative file URLs through `resolveFileUrl(...)`.
+- The create-user flow must not silently rely on avatar upload unless the backend create contract also accepts `avatarUrl`.
+
+### 4. Validation & Error Matrix
+- User selects an unsupported image type or oversized image -> upload API rejects the file and the edit modal stays open.
+- Upload succeeds but update request is not submitted -> preview may change locally, but the user record remains unchanged after refresh.
+- User clicks `清空` and saves -> backend persists `avatarUrl = null` and the list/modal no longer show the previous image.
+
+### 5. Good/Base/Bad Cases
+- Good: edit modal shows the current avatar, uploads to `users/avatars`, and saves the returned URL via `updateUser(...)`.
+- Base: a user without an avatar still renders a text fallback in the list and edit modal.
+- Bad: sending the raw `File` object directly to `updateUser(...)` or storing an unresolved local blob URL as `avatarUrl`.
+
+### 6. Tests Required
+- Run `pnpm exec vue-tsc --noEmit` after changing avatar upload or edit flow types.
+- Run backend tests after changing the `avatarUrl` update contract.
+- Manually verify upload success, upload failure, and avatar clearing in `/system/users` when a dev server is running.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+await updateUser(userId, {
+  avatarUrl: file as unknown as string,
+});
+```
+
+#### Correct
+```ts
+const uploaded = await uploadFile(file, 'users/avatars');
+await updateUser(userId, {
+  avatarUrl: uploaded.url,
+});
+```
+
+---
+
 ## Code Review Checklist
 
 - Does the page remain usable on narrow widths?

@@ -41,6 +41,38 @@
         :rules="rules"
         label-width="80px"
       >
+        <n-form-item v-if="isEdit" label="头像" path="avatarUrl">
+          <div class="flex items-center gap-4">
+            <n-avatar
+              round
+              :size="56"
+              :src="form.avatarUrl ? resolveFileUrl(form.avatarUrl) : undefined"
+            >
+              {{ form.name?.slice(0, 1) || form.username?.slice(0, 1) || 'U' }}
+            </n-avatar>
+            <n-space>
+              <n-button :loading="avatarUploading" @click="handleAvatarTrigger">
+                上传头像
+              </n-button>
+              <n-button
+                v-if="form.avatarUrl"
+                quaternary
+                type="warning"
+                :disabled="avatarUploading"
+                @click="clearAvatar"
+              >
+                清空
+              </n-button>
+            </n-space>
+            <input
+              ref="avatarInputRef"
+              class="hidden"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+              @change="handleAvatarSelected"
+            >
+          </div>
+        </n-form-item>
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="form.username" :disabled="isEdit" autocomplete="username" />
         </n-form-item>
@@ -135,7 +167,7 @@
 import { ref, reactive, onMounted, h, type VNode } from 'vue'
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
-import { NButton, NSpace } from 'naive-ui'
+import { NAvatar, NButton, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
 import {
   getUsers,
@@ -146,6 +178,7 @@ import {
   getUserRoles,
   assignUserRoles,
 } from '@/api/user'
+import { uploadFile } from '@/api/file'
 import { getRoles } from '@/api/roles'
 import type { User, Role, CreateUserDto, ResetUserPasswordDto } from '@/types'
 import PagePagination from '@/components/common/PagePagination.vue'
@@ -154,6 +187,7 @@ import PageTableCard from '@/components/common/PageTableCard.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
+import { resolveFileUrl } from '@/utils/file-url'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -163,6 +197,7 @@ const submitLoading = ref(false)
 const roleLoading = ref(false)
 const roleSubmitLoading = ref(false)
 const passwordSubmitLoading = ref(false)
+const avatarUploading = ref(false)
 const dialogVisible = ref(false)
 const roleDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
@@ -172,6 +207,7 @@ const allRoles = ref<Role[]>([])
 const selectedRoleIds = ref<number[]>([])
 const formRef = ref<FormInst>()
 const passwordFormRef = ref<FormInst>()
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 const currentUserId = ref<number>()
 const currentUserName = ref('')
 
@@ -181,11 +217,12 @@ const pagination = reactive({
   total: 0
 })
 
-const form = reactive<CreateUserDto>({
+const form = reactive<CreateUserDto & { avatarUrl?: string | null }>({
   username: '',
   email: '',
   password: '',
-  name: ''
+  name: '',
+  avatarUrl: '',
 })
 
 const passwordForm = reactive<ResetUserPasswordDto & { confirmPassword: string }>({
@@ -226,6 +263,17 @@ const passwordRules: FormRules = {
 const createColumns = (): DataTableColumns<User> => {
   return autoFitTableColumns([
     { title: 'ID', key: 'id' },
+    {
+      title: '头像',
+      key: 'avatarUrl',
+      render: (row) => h(NAvatar, {
+        round: true,
+        size: 36,
+        src: row.avatarUrl ? resolveFileUrl(row.avatarUrl) : undefined,
+      }, {
+        default: () => row.name?.slice(0, 1) || row.username.slice(0, 1) || 'U'
+      })
+    },
     { title: '用户名', key: 'username' },
     {
       title: '邮箱',
@@ -326,12 +374,17 @@ const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 }
 
-const handleCreate = () => {
-  isEdit.value = false
+const resetUserForm = () => {
   form.username = ''
   form.email = ''
   form.password = ''
   form.name = ''
+  form.avatarUrl = ''
+}
+
+const handleCreate = () => {
+  isEdit.value = false
+  resetUserForm()
   dialogVisible.value = true
 }
 
@@ -342,7 +395,38 @@ const handleEdit = (user: User) => {
   form.email = user.email || ''
   form.name = user.name || ''
   form.password = ''
+  form.avatarUrl = user.avatarUrl || ''
   dialogVisible.value = true
+}
+
+const handleAvatarTrigger = () => {
+  avatarInputRef.value?.click()
+}
+
+const clearAvatar = () => {
+  form.avatarUrl = ''
+}
+
+const handleAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (!file) {
+    return
+  }
+
+  avatarUploading.value = true
+  try {
+    const result = await uploadFile(file, 'users/avatars')
+    form.avatarUrl = result.url
+    message.success('头像上传成功')
+  } catch (error: any) {
+    message.error(error.message || '头像上传失败')
+  } finally {
+    avatarUploading.value = false
+    if (input) {
+      input.value = ''
+    }
+  }
 }
 
 const handleAssignRoles = async (user: User) => {
@@ -418,7 +502,8 @@ const handleSubmit = async () => {
         if (isEdit.value) {
           await updateUser(currentUserId.value!, {
             email: form.email,
-            name: form.name
+            name: form.name,
+            avatarUrl: form.avatarUrl || null,
           })
           message.success('更新成功')
         } else {

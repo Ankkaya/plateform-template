@@ -12,6 +12,16 @@ export class UpdateUserDto {
   email?: string;
 
   @ApiProperty({
+    example: 'https://example.com/avatar.png',
+    required: false,
+    nullable: true,
+    description: '用户头像地址，可选，传 null 可清空',
+  })
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string | null;
+
+  @ApiProperty({
     example: 'newpassword123',
     required: false,
     description: '用户新密码，最少6位字符，可选',

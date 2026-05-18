@@ -65,6 +65,7 @@ export interface CreateUserDto {
 // 更新用户
 export interface UpdateUserDto {
   email?: string
+  avatarUrl?: string | null
   password?: string
   name?: string
 }
