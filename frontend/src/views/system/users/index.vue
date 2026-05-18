@@ -41,29 +41,45 @@
         :rules="rules"
         label-width="80px"
       >
-        <n-form-item v-if="isEdit" label="头像" path="avatarUrl">
-          <div class="flex items-center gap-4">
-            <n-avatar
-              round
-              :size="56"
-              :src="form.avatarUrl ? resolveFileUrl(form.avatarUrl) : undefined"
+        <n-form-item label="用户头像" path="avatarUrl">
+          <div class="avatar-field">
+            <button
+              type="button"
+              class="avatar-picker"
+              :class="{ 'avatar-picker--filled': !!formAvatarDisplayUrl }"
+              @click="handleAvatarTrigger"
             >
-              {{ form.name?.slice(0, 1) || form.username?.slice(0, 1) || 'U' }}
-            </n-avatar>
-            <n-space>
-              <n-button :loading="avatarUploading" @click="handleAvatarTrigger">
-                上传头像
-              </n-button>
-              <n-button
-                v-if="form.avatarUrl"
-                quaternary
-                type="warning"
-                :disabled="avatarUploading"
-                @click="clearAvatar"
+              <img
+                v-if="formAvatarDisplayUrl"
+                :src="formAvatarDisplayUrl"
+                alt="用户头像"
+                class="avatar-picker__image"
               >
-                清空
-              </n-button>
-            </n-space>
+              <div v-else class="avatar-picker__placeholder">
+                <n-icon size="28">
+                  <image-outline />
+                </n-icon>
+                <span>选择图片</span>
+              </div>
+            </button>
+            <div class="avatar-field__actions">
+              <n-space>
+                <n-button @click="handleAvatarTrigger">
+                  {{ formAvatarDisplayUrl ? '重新选择' : '选择头像' }}
+                </n-button>
+                <n-button
+                  v-if="formAvatarDisplayUrl"
+                  quaternary
+                  type="warning"
+                  @click="clearAvatar"
+                >
+                  清空
+                </n-button>
+              </n-space>
+              <p class="avatar-field__hint">
+                非必填。支持 JPG、PNG、WEBP、GIF、AVIF，编辑完成后仅在表单内预览，提交时才上传。
+              </p>
+            </div>
             <input
               ref="avatarInputRef"
               class="hidden"
@@ -160,15 +176,22 @@
         </n-space>
       </template>
     </n-modal>
+
+    <UserAvatarEditorModal
+      v-model:show="avatarEditorVisible"
+      :source-url="avatarEditorSourceUrl"
+      @confirm="handleAvatarEditorConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h, type VNode } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, h, type VNode } from 'vue'
 import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
-import { NAvatar, NButton, NSpace } from 'naive-ui'
+import { NAvatar, NButton, NIcon, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
+import { ImageOutline } from '@vicons/ionicons5'
 import {
   getUsers,
   createUser,
@@ -184,10 +207,20 @@ import type { User, Role, CreateUserDto, ResetUserPasswordDto } from '@/types'
 import PagePagination from '@/components/common/PagePagination.vue'
 import PageToolbar from '@/components/common/PageToolbar.vue'
 import PageTableCard from '@/components/common/PageTableCard.vue'
+import UserAvatarEditorModal from '@/components/common/UserAvatarEditorModal.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
 import { resolveFileUrl } from '@/utils/file-url'
+
+const ALLOWED_AVATAR_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+])
+const MAX_AVATAR_SIZE = 5 * 1024 * 1024
 
 const message = useMessage()
 const dialog = useDialog()
@@ -197,10 +230,10 @@ const submitLoading = ref(false)
 const roleLoading = ref(false)
 const roleSubmitLoading = ref(false)
 const passwordSubmitLoading = ref(false)
-const avatarUploading = ref(false)
 const dialogVisible = ref(false)
 const roleDialogVisible = ref(false)
 const passwordDialogVisible = ref(false)
+const avatarEditorVisible = ref(false)
 const isEdit = ref(false)
 const users = ref<User[]>([])
 const allRoles = ref<Role[]>([])
@@ -208,6 +241,9 @@ const selectedRoleIds = ref<number[]>([])
 const formRef = ref<FormInst>()
 const passwordFormRef = ref<FormInst>()
 const avatarInputRef = ref<HTMLInputElement | null>(null)
+const avatarEditorSourceUrl = ref('')
+const avatarPreviewUrl = ref('')
+const pendingAvatarBlob = ref<Blob | null>(null)
 const currentUserId = ref<number>()
 const currentUserName = ref('')
 
@@ -222,7 +258,7 @@ const form = reactive<CreateUserDto & { avatarUrl?: string | null }>({
   email: '',
   password: '',
   name: '',
-  avatarUrl: '',
+  avatarUrl: null,
 })
 
 const passwordForm = reactive<ResetUserPasswordDto & { confirmPassword: string }>({
@@ -258,6 +294,18 @@ const passwordRules: FormRules = {
     },
   ],
 }
+
+const formAvatarDisplayUrl = computed(() => {
+  if (avatarPreviewUrl.value) {
+    return avatarPreviewUrl.value
+  }
+
+  if (form.avatarUrl) {
+    return resolveFileUrl(form.avatarUrl)
+  }
+
+  return ''
+})
 
 // 表格列定义
 const createColumns = (): DataTableColumns<User> => {
@@ -379,7 +427,8 @@ const resetUserForm = () => {
   form.email = ''
   form.password = ''
   form.name = ''
-  form.avatarUrl = ''
+  form.avatarUrl = null
+  clearAvatarAssets()
 }
 
 const handleCreate = () => {
@@ -391,11 +440,12 @@ const handleCreate = () => {
 const handleEdit = (user: User) => {
   isEdit.value = true
   currentUserId.value = user.id
+  clearAvatarAssets()
   form.username = user.username
   form.email = user.email || ''
   form.name = user.name || ''
   form.password = ''
-  form.avatarUrl = user.avatarUrl || ''
+  form.avatarUrl = user.avatarUrl || null
   dialogVisible.value = true
 }
 
@@ -403,30 +453,70 @@ const handleAvatarTrigger = () => {
   avatarInputRef.value?.click()
 }
 
-const clearAvatar = () => {
-  form.avatarUrl = ''
+const revokeObjectUrl = (url: string) => {
+  if (url.startsWith('blob:')) {
+    URL.revokeObjectURL(url)
+  }
 }
 
-const handleAvatarSelected = async (event: Event) => {
+const clearAvatarAssets = () => {
+  revokeObjectUrl(avatarEditorSourceUrl.value)
+  revokeObjectUrl(avatarPreviewUrl.value)
+  avatarEditorSourceUrl.value = ''
+  avatarPreviewUrl.value = ''
+  pendingAvatarBlob.value = null
+}
+
+const clearAvatar = () => {
+  clearAvatarAssets()
+  form.avatarUrl = null
+}
+
+const handleAvatarSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null
   const file = input?.files?.[0]
   if (!file) {
     return
   }
 
-  avatarUploading.value = true
-  try {
-    const result = await uploadFile(file, 'users/avatars')
-    form.avatarUrl = result.url
-    message.success('头像上传成功')
-  } catch (error: any) {
-    message.error(error.message || '头像上传失败')
-  } finally {
-    avatarUploading.value = false
-    if (input) {
-      input.value = ''
-    }
+  if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+    message.error('仅支持 JPG、PNG、WEBP、GIF、AVIF 格式图片')
+    if (input) input.value = ''
+    return
   }
+
+  if (file.size > MAX_AVATAR_SIZE) {
+    message.error('头像图片大小不能超过 5MB')
+    if (input) input.value = ''
+    return
+  }
+
+  revokeObjectUrl(avatarEditorSourceUrl.value)
+  avatarEditorSourceUrl.value = URL.createObjectURL(file)
+  avatarEditorVisible.value = true
+
+  if (input) {
+    input.value = ''
+  }
+}
+
+const handleAvatarEditorConfirm = (payload: { blob: Blob; previewUrl: string }) => {
+  revokeObjectUrl(avatarPreviewUrl.value)
+  avatarPreviewUrl.value = payload.previewUrl
+  pendingAvatarBlob.value = payload.blob
+  form.avatarUrl = null
+}
+
+const uploadPendingAvatarIfNeeded = async () => {
+  if (!pendingAvatarBlob.value) {
+    return form.avatarUrl || null
+  }
+
+  const avatarFile = new File([pendingAvatarBlob.value], `avatar-${Date.now()}.png`, {
+    type: 'image/png',
+  })
+  const result = await uploadFile(avatarFile, 'users/avatars')
+  return result.url
 }
 
 const handleAssignRoles = async (user: User) => {
@@ -499,21 +589,29 @@ const handleSubmit = async () => {
     if (!errors) {
       submitLoading.value = true
       try {
+        const uploadedAvatarUrl = await uploadPendingAvatarIfNeeded()
         if (isEdit.value) {
           await updateUser(currentUserId.value!, {
             email: form.email,
             name: form.name,
-            avatarUrl: form.avatarUrl || null,
+            avatarUrl: uploadedAvatarUrl,
           })
           message.success('更新成功')
         } else {
-          await createUser(form)
+          await createUser({
+            username: form.username,
+            email: form.email,
+            password: form.password,
+            name: form.name,
+            avatarUrl: uploadedAvatarUrl,
+          })
           message.success('创建成功')
         }
         dialogVisible.value = false
+        clearAvatarAssets()
         fetchUsers()
-      } catch (error) {
-        message.error('操作失败')
+      } catch (error: any) {
+        message.error(error.message || '操作失败')
       } finally {
         submitLoading.value = false
       }
@@ -543,4 +641,73 @@ const handleSubmitPasswordReset = async () => {
 onMounted(() => {
   fetchUsers()
 })
+
+onBeforeUnmount(() => {
+  clearAvatarAssets()
+})
 </script>
+
+<style scoped>
+.avatar-field {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-field__actions {
+  flex: 1;
+}
+
+.avatar-field__hint {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.avatar-picker {
+  width: 112px;
+  height: 112px;
+  border: 1px dashed rgba(148, 163, 184, 0.8);
+  border-radius: 22px;
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-color: #f8fafc;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.avatar-picker:hover {
+  border-color: #2080f0;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(32, 128, 240, 0.12);
+}
+
+.avatar-picker--filled {
+  border-style: solid;
+  background: #eff6ff;
+}
+
+.avatar-picker__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.avatar-picker__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+</style>

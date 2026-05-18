@@ -251,35 +251,41 @@ When adding a test framework later, start with:
 ## Scenario: User Avatar Management
 
 ### 1. Scope / Trigger
-- Trigger: Updating `/system/users` so admins can edit a managed user's avatar.
+- Trigger: Updating `/system/users` so admins can create or edit a managed user's avatar.
 
 ### 2. Signatures
 - Page: `src/views/system/users/index.vue`
+- Avatar editor: `src/components/common/UserAvatarEditorModal.vue`
 - File API client: `src/api/file.ts`
 - User API client: `src/api/user.ts`
-- Shared request type: `UpdateUserDto` / `UpdateUserParams`
+- Shared request type: `CreateUserDto`, `UpdateUserDto`, `CreateUserParams`, `UpdateUserParams`
 
 ### 3. Contracts
 - Avatar upload should reuse the existing file-upload API instead of creating a dedicated avatar endpoint.
-- The user edit flow must upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
+- Selecting an avatar should open a client-side editor modal; the page should not upload the file immediately after file selection.
+- The avatar editor should expose common adjustments such as scale/rotation/flip/offset and show the result preview beside the controls.
+- The create/edit form should keep the edited avatar as a local preview first, then upload it only when the user submits the form successfully.
+- The create flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `POST /users`.
+- The edit flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
 - Clearing an avatar should submit `avatarUrl: null` so the backend clears the database field.
 - Avatar preview should resolve relative file URLs through `resolveFileUrl(...)`.
-- The create-user flow must not silently rely on avatar upload unless the backend create contract also accepts `avatarUrl`.
+- Users without avatars in the list should continue to use the existing text/avatar fallback rendering.
 
 ### 4. Validation & Error Matrix
-- User selects an unsupported image type or oversized image -> upload API rejects the file and the edit modal stays open.
-- Upload succeeds but update request is not submitted -> preview may change locally, but the user record remains unchanged after refresh.
+- User selects an unsupported image type or oversized image -> reject before opening the editor modal and keep the current form state.
+- User closes the editor modal without confirming -> do not change the current avatar preview in the form.
+- Avatar is edited locally but form submit fails before or after upload -> keep the form open and preserve the current preview so the user can retry.
 - User clicks `清空` and saves -> backend persists `avatarUrl = null` and the list/modal no longer show the previous image.
 
 ### 5. Good/Base/Bad Cases
-- Good: edit modal shows the current avatar, uploads to `users/avatars`, and saves the returned URL via `updateUser(...)`.
+- Good: the form shows a square image-picker placeholder, opens the editor after selection, previews the edited result in the form, and uploads to `users/avatars` only on submit.
 - Base: a user without an avatar still renders a text fallback in the list and edit modal.
-- Bad: sending the raw `File` object directly to `updateUser(...)` or storing an unresolved local blob URL as `avatarUrl`.
+- Bad: sending the raw `File` object directly to `createUser(...)` / `updateUser(...)`, or storing an unresolved local blob URL as `avatarUrl`.
 
 ### 6. Tests Required
 - Run `pnpm exec vue-tsc --noEmit` after changing avatar upload or edit flow types.
 - Run backend tests after changing the `avatarUrl` update contract.
-- Manually verify upload success, upload failure, and avatar clearing in `/system/users` when a dev server is running.
+- Manually verify create-with-avatar, edit-with-avatar, upload failure, editor cancel, and avatar clearing in `/system/users` when a dev server is running.
 
 ### 7. Wrong vs Correct
 #### Wrong
@@ -292,7 +298,8 @@ await updateUser(userId, {
 #### Correct
 ```ts
 const uploaded = await uploadFile(file, 'users/avatars');
-await updateUser(userId, {
+await createUser({
+  ...form,
   avatarUrl: uploaded.url,
 });
 ```

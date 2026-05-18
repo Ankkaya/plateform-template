@@ -20,6 +20,16 @@ export class CreateUserDto {
   email?: string;
 
   @ApiProperty({
+    example: 'https://example.com/avatar.png',
+    required: false,
+    nullable: true,
+    description: '用户头像地址，可选',
+  })
+  @IsString()
+  @IsOptional()
+  avatarUrl?: string | null;
+
+  @ApiProperty({
     example: 'password123',
     description: '用户密码，最少6位字符',
   })
