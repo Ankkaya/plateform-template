@@ -71,6 +71,15 @@
             </button>
             <div class="avatar-field__actions">
               <p class="avatar-field__hint">支持 JPG、PNG、WEBP、GIF、AVIF</p>
+              <n-button
+                v-if="formAvatarDisplayUrl"
+                text
+                type="error"
+                size="small"
+                @click="handleClearAvatar"
+              >
+                清空头像
+              </n-button>
             </div>
             <input
               ref="avatarInputRef"
@@ -577,6 +586,11 @@ const handleAvatarEditorCancel = () => {
   clearAvatarEditorSource()
 }
 
+const handleClearAvatar = () => {
+  clearAvatarAssets()
+  form.avatarUrl = null
+}
+
 const uploadPendingAvatarIfNeeded = async () => {
   if (!pendingAvatarBlob.value) {
     return form.avatarUrl || null
@@ -666,6 +680,9 @@ const handleSubmit = async () => {
             name: form.name,
             avatarUrl: uploadedAvatarUrl,
           })
+          if (currentUserId.value === authStore.user?.id) {
+            await authStore.fetchUser()
+          }
           message.success('更新成功')
         } else {
           await createUser({

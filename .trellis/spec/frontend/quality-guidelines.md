@@ -282,6 +282,8 @@ When adding a test framework later, start with:
 - The edit flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `PATCH /users/:id`.
 - Clearing an avatar should submit `avatarUrl: null` so the backend clears the database field.
 - Avatar preview should resolve relative file URLs through `resolveFileUrl(...)`.
+- Layout/header avatars should render the current user's `avatarUrl` through `resolveFileUrl(...)`, with the existing icon fallback only when no avatar URL exists.
+- When editing the currently logged-in user, refresh `authStore.user` after a successful update so global layout/profile surfaces show the new `avatarUrl` without requiring re-login.
 - Users without avatars in the list should continue to use the existing text/avatar fallback rendering.
 
 ### 4. Validation & Error Matrix
@@ -289,6 +291,7 @@ When adding a test framework later, start with:
 - User closes the editor modal without confirming -> do not change the current avatar preview in the form.
 - Avatar is edited locally but form submit fails before or after upload -> keep the form open and preserve the current preview so the user can retry.
 - User clicks `清空` and saves -> backend persists `avatarUrl = null` and the list/modal no longer show the previous image.
+- Admin edits their own avatar -> update succeeds, `authStore.user` is refreshed, and the layout/header avatar reflects the new URL.
 
 ### 5. Good/Base/Bad Cases
 - Good: the form shows a square image-picker placeholder, opens the editor after selection, previews the edited result in the form, and uploads to `users/avatars` only on submit.
@@ -299,6 +302,7 @@ When adding a test framework later, start with:
 - Run `pnpm exec vue-tsc --noEmit` after changing avatar upload or edit flow types.
 - Run backend tests after changing the `avatarUrl` update contract.
 - Manually verify create-with-avatar, edit-with-avatar, upload failure, editor cancel, and avatar clearing in `/system/users` when a dev server is running.
+- When editing the current login user's avatar, manually verify the header avatar updates without logging out.
 
 ### 7. Wrong vs Correct
 #### Wrong

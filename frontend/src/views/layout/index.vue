@@ -102,8 +102,13 @@
           <n-dropdown trigger="hover" :options="dropdownOptions" @select="handleSelect">
             <div class="user-dropdown-trigger flex items-center gap-2 cursor-pointer">
               <n-avatar :size="32">
+                <img
+                  v-if="userAvatarUrl"
+                  :src="userAvatarUrl"
+                  :alt="user?.name || user?.username || '用户头像'"
+                >
                 <template #icon>
-                  <n-icon><person-outline /></n-icon>
+                  <n-icon v-if="!userAvatarUrl"><person-outline /></n-icon>
                 </template>
               </n-avatar>
               <span class="text-base-text">{{ user?.name || user?.username }}</span>
@@ -150,6 +155,7 @@ import { useTabStore } from '@/store/modules/tab'
 import type { Menu } from '@/types'
 import { APP_TITLE } from '@/constants/app'
 import { localStg } from '@/utils/storage'
+import { resolveFileUrl } from '@/utils/file-url'
 
 interface BreadcrumbItem {
   title: string
@@ -185,6 +191,7 @@ watch(
 )
 
 const user = computed(() => authStore.user)
+const userAvatarUrl = computed(() => resolveFileUrl(user.value?.avatarUrl))
 const userRoleNames = computed(() => (
   authStore.user?.roles?.map(role => role.name).filter(Boolean).join('、') || ''
 ))
