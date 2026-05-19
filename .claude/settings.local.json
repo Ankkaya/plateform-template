@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm init)"
+      "Bash(pnpm init)",
+      "Bash(Get-ChildItem -Path \"C:\\\\project\\\\platform-template\\\\frontend\\\\src\\\\utils\" -File -Recurse)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

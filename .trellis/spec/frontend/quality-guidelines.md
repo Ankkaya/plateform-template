@@ -172,19 +172,19 @@ When adding a test framework later, start with:
 
 ### 3. Contracts
 - Search/filter controls should be hosted in `QueryForm`, wrapped by `PageSearchCard`, and placed at the top of the content area when filters exist.
-- Export and batch-delete table actions should use `PageTableCard` props/events (`exportPermission`, `batchDeletePermission`, `selectedCount`, `@export`, `@batch-delete`) while the page owns selected row keys and handlers.
 - Top-level action buttons should render inside `PageToolbar`, below `PageSearchCard` rather than inline in the search form.
 - The list shell should use `PageTableCard`; when column visibility is needed, pass `columnSettingOptions` and `columnSettingValue`.
-- Footer pagination should use `PagePagination`; page files still own `page`, `pageSize`, total count, and request timing.
+- Export and batch-delete table actions should use `PageTableCard` props/events (`exportPermission`, `batchDeletePermission`, `selectedCount`, `@export`, `@batch-delete`) while the page owns selected row keys and handlers.
 - Table export handlers should call `exportExcel(...)` from `utils/export.ts` and download `.xlsx` workbooks.
+- Footer pagination should use `PagePagination`; page files still own `page`, `pageSize`, total count, and request timing.
 - `PageTableCard` standardizes where `TableColumnSettings` appears; page files still own the actual `n-data-table`, pagination, data loading, and row actions.
 
 ### 4. Validation & Error Matrix
 - New page has top action buttons mixed into `QueryForm` -> move them to `PageToolbar`.
 - New page has a hand-written search `n-card` wrapper -> move it to `PageSearchCard`.
-- New page places export or batch-delete buttons outside `PageTableCard` -> move the shared actions into `PageTableCard` props/events and keep page-specific logic in handlers.
 - New page renders a custom "列设置" trigger outside the list shell -> move it into `PageTableCard`.
 - New page duplicates raw `n-pagination` footer markup -> move it into `PagePagination`.
+- New page places export or batch-delete buttons outside `PageTableCard` -> move the shared actions into `PageTableCard` props/events and keep page-specific logic in handlers.
 - New page has no search area -> `PageToolbar` + `PageTableCard` is still the preferred base structure.
 
 ### 5. Good/Base/Bad Cases
