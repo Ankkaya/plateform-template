@@ -1,35 +1,5 @@
 <template>
-  <div class="h-screen flex flex-col overflow-hidden bg-layout transition-theme">
-    <!-- 顶部导航 -->
-    <header class="bg-container shadow-header h-16 flex items-center justify-between px-6 z-10 transition-theme">
-      <div class="flex items-center gap-4">
-        <n-button quaternary circle @click="toggleSidebarCollapsed">
-          <template #icon>
-            <n-icon class="sidebar-toggle-icon" :class="{ 'sidebar-toggle-icon--collapsed': sidebarCollapsed }">
-              <menu-outline />
-            </n-icon>
-          </template>
-        </n-button>
-        <h1 class="text-xl font-bold text-base-text">{{ APP_TITLE }}</h1>
-      </div>
-      <div class="flex items-center gap-4">
-        <!-- 主题切换按钮 -->
-        <ThemeSchemaSwitch :theme-scheme="themeStore.themeScheme" @switch="themeStore.toggleThemeScheme" />
-
-        <n-dropdown trigger="hover" :options="dropdownOptions" @select="handleSelect">
-          <div class="user-dropdown-trigger flex items-center gap-2 cursor-pointer">
-            <n-avatar :size="32">
-              <template #icon>
-                <n-icon><person-outline /></n-icon>
-              </template>
-            </n-avatar>
-            <span class="text-base-text">{{ user?.name || user?.username }}</span>
-            <n-icon class="user-dropdown-arrow"><chevron-down-outline /></n-icon>
-          </div>
-        </n-dropdown>
-      </div>
-    </header>
-
+  <div class="h-screen flex overflow-hidden bg-layout transition-theme">
     <n-modal
       v-model:show="profileDialogVisible"
       title="个人信息"
@@ -57,31 +27,48 @@
       </template>
     </n-modal>
 
-    <!-- 主体区域 -->
-    <div class="flex-1 flex min-h-0 overflow-hidden">
-      <!-- 左侧菜单 -->
-      <aside
-        class="layout-scrollbar shrink-0 overflow-y-auto bg-container border-r border-gray-200 dark:border-gray-700 shadow-sider transition-theme"
-        :style="{ width: `${sidebarWidth}px` }"
-      >
-        <div class="min-h-full py-3">
-          <n-menu
-            :value="activeMenu"
-            :options="menuOptions"
-            :collapsed="sidebarCollapsed"
-            :collapsed-width="sidebarCollapsedWidth"
-            :collapsed-icon-size="18"
-            @update:value="handleMenuSelect"
-          />
+    <!-- 左侧菜单 -->
+    <aside
+      class="shrink-0 flex flex-col overflow-hidden bg-container border-r border-gray-200 dark:border-gray-700 shadow-sider transition-theme"
+      :style="{ width: `${sidebarWidth}px` }"
+    >
+      <div class="sidebar-brand h-16 shrink-0 flex items-center border-b border-gray-200 px-4 dark:border-gray-700 transition-theme">
+        <div class="sidebar-brand__icon">
+          <n-icon :size="22">
+            <apps-outline />
+          </n-icon>
         </div>
-      </aside>
+        <h1 v-show="!sidebarCollapsed" class="sidebar-brand__title text-base font-semibold text-base-text">
+          {{ APP_TITLE }}
+        </h1>
+      </div>
 
-      <!-- 右侧内容 -->
-      <main class="flex-1 flex min-h-0 flex-col overflow-hidden bg-layout transition-theme">
-        <!-- 选项卡栏 -->
-        <TabBar />
-        <div class="h-10 shrink-0 flex items-center border-b border-gray-200 bg-container px-4 dark:border-gray-700 transition-theme">
-          <n-breadcrumb>
+      <div class="layout-scrollbar min-h-0 flex-1 overflow-y-auto py-3">
+        <n-menu
+          :value="activeMenu"
+          :options="menuOptions"
+          :collapsed="sidebarCollapsed"
+          :collapsed-width="sidebarCollapsedWidth"
+          :collapsed-icon-size="18"
+          @update:value="handleMenuSelect"
+        />
+      </div>
+    </aside>
+
+    <!-- 右侧内容 -->
+    <main class="flex-1 flex min-w-0 min-h-0 flex-col overflow-hidden bg-layout transition-theme">
+      <!-- 顶部导航 -->
+      <header class="bg-container shadow-header h-16 shrink-0 flex items-center justify-between px-4 z-10 transition-theme">
+        <div class="min-w-0 flex items-center gap-3">
+          <n-button quaternary circle @click="toggleSidebarCollapsed">
+            <template #icon>
+              <n-icon class="sidebar-toggle-icon" :class="{ 'sidebar-toggle-icon--collapsed': sidebarCollapsed }">
+                <menu-outline />
+              </n-icon>
+            </template>
+          </n-button>
+
+          <n-breadcrumb class="min-w-0">
             <n-breadcrumb-item
               v-for="item in breadcrumbs"
               :key="item.path || item.title"
@@ -93,6 +80,28 @@
           </n-breadcrumb>
         </div>
 
+        <div class="flex shrink-0 items-center gap-4">
+          <!-- 主题切换按钮 -->
+          <ThemeSchemaSwitch :theme-scheme="themeStore.themeScheme" @switch="themeStore.toggleThemeScheme" />
+
+          <n-dropdown trigger="hover" :options="dropdownOptions" @select="handleSelect">
+            <div class="user-dropdown-trigger flex items-center gap-2 cursor-pointer">
+              <n-avatar :size="32">
+                <template #icon>
+                  <n-icon><person-outline /></n-icon>
+                </template>
+              </n-avatar>
+              <span class="text-base-text">{{ user?.name || user?.username }}</span>
+              <n-icon class="user-dropdown-arrow"><chevron-down-outline /></n-icon>
+            </div>
+          </n-dropdown>
+        </div>
+      </header>
+
+      <div class="flex-1 flex min-h-0 flex-col overflow-hidden">
+        <!-- 选项卡栏 -->
+        <TabBar />
+
         <!-- 页面内容 -->
         <div class="content-scrollbar flex-1 overflow-y-auto">
           <router-view v-slot="{ Component, route }">
@@ -101,8 +110,8 @@
             </keep-alive>
           </router-view>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   </div>
 </template>
 
@@ -112,6 +121,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store'
 import { useThemeStore } from '@/store/modules/theme'
 import {
+  AppsOutline,
   PersonOutline,
   ChevronDownOutline,
   MenuOutline,
@@ -310,6 +320,29 @@ watch(
 </script>
 
 <style scoped>
+.sidebar-brand {
+  gap: 12px;
+}
+
+.sidebar-brand__icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--primary-color);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.sidebar-brand__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sidebar-toggle-icon {
   transition: transform 0.24s ease;
 }
