@@ -91,16 +91,16 @@
           </div>
         </n-form-item>
         <n-form-item label="用户名" path="username">
-          <n-input v-model:value="form.username" :disabled="isEdit" autocomplete="username" />
+          <n-input v-model:value="form.username" :disabled="isEdit" autocomplete="username" placeholder="请输入用户名" />
         </n-form-item>
         <n-form-item label="邮箱" path="email">
-          <n-input v-model:value="form.email" autocomplete="email" />
+          <n-input v-model:value="form.email" autocomplete="email" placeholder="请输入邮箱" />
         </n-form-item>
         <n-form-item label="密码" path="password" v-if="!isEdit">
-          <n-input v-model:value="form.password" type="password" show-password-on="click" autocomplete="new-password" />
+          <n-input v-model:value="form.password" type="password" show-password-on="click" autocomplete="new-password" placeholder="请输入密码" />
         </n-form-item>
         <n-form-item label="姓名" path="name">
-          <n-input v-model:value="form.name" />
+          <n-input v-model:value="form.name" placeholder="请输入姓名" />
         </n-form-item>
       </n-form>
       <template #footer>
@@ -157,6 +157,7 @@
             type="password"
             show-password-on="click"
             autocomplete="new-password"
+            placeholder="请输入新密码"
           />
         </n-form-item>
         <n-form-item label="确认密码" path="confirmPassword">
@@ -165,6 +166,7 @@
             type="password"
             show-password-on="click"
             autocomplete="new-password"
+            placeholder="请再次输入新密码"
           />
         </n-form-item>
       </n-form>

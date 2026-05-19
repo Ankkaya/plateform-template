@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { darkTheme } from 'naive-ui';
+import { darkTheme, dateZhCN, zhCN } from 'naive-ui';
 import { useThemeStore } from '@/store/modules/theme';
 
 const themeStore = useThemeStore();
@@ -17,6 +17,8 @@ const naiveThemeOverrides = computed(() => themeStore.naiveTheme);
   <n-config-provider
     :theme="naiveDarkTheme"
     :theme-overrides="naiveThemeOverrides"
+    :locale="zhCN"
+    :date-locale="dateZhCN"
     class="h-full"
   >
     <n-message-provider>

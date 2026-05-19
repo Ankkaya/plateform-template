@@ -37,10 +37,10 @@
                 <n-input v-model:value="wechatPayForm.mchSerialNo" placeholder="请输入证书序列号" />
               </n-form-item-gi>
               <n-form-item-gi label="支付回调地址">
-                <n-input v-model:value="wechatPayForm.notifyUrl" />
+                <n-input v-model:value="wechatPayForm.notifyUrl" placeholder="请输入支付回调地址" />
               </n-form-item-gi>
               <n-form-item-gi label="退款回调地址">
-                <n-input v-model:value="wechatPayForm.refundNotifyUrl" />
+                <n-input v-model:value="wechatPayForm.refundNotifyUrl" placeholder="请输入退款回调地址" />
               </n-form-item-gi>
               <n-form-item-gi span="2" label="APIv3 Key">
                 <n-input v-model:value="wechatPayForm.apiV3Key" type="password" show-password-on="click" placeholder="请输入 APIv3 Key" />
