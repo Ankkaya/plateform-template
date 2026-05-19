@@ -328,6 +328,7 @@ const createColumns = (): DataTableColumns<User> => {
             width: 36,
             height: 36,
             objectFit: 'cover',
+            previewDisabled: true,
             imgProps: {
               class: 'user-table-avatar',
             },
