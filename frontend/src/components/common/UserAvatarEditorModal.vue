@@ -60,9 +60,15 @@
       <section class="avatar-editor__panel avatar-editor__panel--preview">
         <div class="avatar-editor__preview-header">结果预览</div>
         <div class="avatar-editor__preview-container">
-          <div class="avatar-editor__preview-box" :style="previewStyle">
-            <div v-if="previewData.url" :style="previewData.div">
-              <img :src="previewData.url" :style="previewData.img" alt="头像预览">
+          <div class="avatar-editor__preview-box" :style="previewBoxStyle">
+            <div
+              v-if="previewData.url"
+              class="avatar-editor__preview-viewport"
+              :style="previewInnerStyle"
+            >
+              <div :style="previewData.div">
+                <img :src="previewData.url" :style="previewData.img" alt="头像预览">
+              </div>
             </div>
           </div>
         </div>
@@ -142,31 +148,32 @@ interface CropPreviewData {
 }
 
 const previewData = ref<CropPreviewData>({})
-
-const previewStyle = ref<PreviewStyleRecord>({
+const previewInnerStyle = ref<PreviewStyleRecord>({})
+const previewBoxStyle: PreviewStyleRecord = {
   width: `${PREVIEW_SIZE}px`,
   height: `${PREVIEW_SIZE}px`,
   overflow: 'hidden',
   margin: '0 auto',
   borderRadius: '20px',
   border: '1px solid var(--n-border-color, rgba(148, 163, 184, 0.3))',
-})
+  background: 'var(--n-color-embedded, #f8fafc)',
+}
 
 function handleRealTime(data: CropPreviewData) {
   previewData.value = data
 
   if (!data.w || !data.h) {
-    previewStyle.value = createPreviewStyle()
+    previewInnerStyle.value = {}
     return
   }
 
   const previewScale = Math.min(PREVIEW_SIZE / data.w, PREVIEW_SIZE / data.h)
-  previewStyle.value = createPreviewStyle({
+  previewInnerStyle.value = {
     width: `${data.w}px`,
     height: `${data.h}px`,
     transform: `scale(${previewScale})`,
     transformOrigin: 'top left',
-  })
+  }
 }
 
 function handleImageLoad(status?: string) {
@@ -178,19 +185,6 @@ function handleImageLoad(status?: string) {
 
   imageLoaded.value = true
   void resetCropBoxAfterLayout()
-}
-
-function createPreviewStyle(extra: PreviewStyleRecord = {}): PreviewStyleRecord {
-  return {
-    width: `${PREVIEW_SIZE}px`,
-    height: `${PREVIEW_SIZE}px`,
-    overflow: 'hidden',
-    margin: '0 auto',
-    borderRadius: '20px',
-    border: '1px solid var(--n-border-color, rgba(148, 163, 184, 0.3))',
-    background: 'var(--n-color-embedded, #f8fafc)',
-    ...extra,
-  }
 }
 
 function handleScaleChange(value: number) {
@@ -312,7 +306,7 @@ function resetCropperState() {
   cropperReady.value = false
   activeSourceUrl.value = ''
   previewData.value = {}
-  previewStyle.value = createPreviewStyle()
+  previewInnerStyle.value = {}
   imageLoaded.value = false
   confirmLoading.value = false
   scale.value = 1
@@ -422,6 +416,10 @@ watch(
 .avatar-editor__preview-box {
   flex: none;
   background: var(--n-color-embedded, #f8fafc);
+}
+
+.avatar-editor__preview-viewport {
+  flex: none;
 }
 
 :deep(.vue-cropper) {
