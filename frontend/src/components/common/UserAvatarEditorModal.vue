@@ -4,17 +4,19 @@
     preset="card"
     title="编辑头像"
     style="width: 1040px"
+    @after-enter="handleAfterEnter"
+    @after-leave="handleAfterLeave"
     @update:show="handleShowUpdate"
   >
     <div class="avatar-editor">
       <section class="avatar-editor__panel avatar-editor__panel--workspace">
         <div class="avatar-editor__viewport">
           <VueCropper
-            v-if="cropperReady && sourceUrl"
+            v-if="cropperReady && activeSourceUrl"
             :key="cropperKey"
             ref="cropperRef"
             class="avatar-editor__cropper"
-            :img="sourceUrl"
+            :img="activeSourceUrl"
             mode="contain"
             :output-size="0.92"
             :output-type="'png'"
@@ -31,6 +33,8 @@
             :center-box="true"
             :fixed="true"
             :fixed-number="[1, 1]"
+            :high="true"
+            :enlarge="1"
             @real-time="handleRealTime"
             @img-load="handleImageLoad"
           />
@@ -106,17 +110,21 @@ interface CropperInstance {
   rotateLeft: () => void
   rotateRight: () => void
   refresh: () => void
+  goAutoCrop: (width?: number, height?: number) => void
   getCropBlob: (callback: (blob: Blob) => void) => void
 }
 
 const cropperRef = ref<CropperInstance | null>(null)
 
+const activeSourceUrl = ref('')
 const cropperKey = ref(0)
 const cropperReady = ref(false)
 const imageLoaded = ref(false)
 const confirmLoading = ref(false)
+const modalEntered = ref(false)
 const scale = ref(1)
 const lastScale = ref(1)
+let mountVersion = 0
 
 type StyleValue = string | number
 type StyleRecord = Record<string, StyleValue>
@@ -169,7 +177,7 @@ function handleImageLoad(status?: string) {
   }
 
   imageLoaded.value = true
-  void refreshAfterLayout()
+  void resetCropBoxAfterLayout()
 }
 
 function createPreviewStyle(extra: PreviewStyleRecord = {}): PreviewStyleRecord {
@@ -218,43 +226,61 @@ function rotateRight() {
   cropperRef.value?.rotateRight()
 }
 
-function refreshCrop() {
-  cropperRef.value?.refresh()
+async function refreshCrop() {
+  if (!cropperRef.value) {
+    return
+  }
+
+  cropperRef.value.refresh()
+  await resetCropBoxAfterLayout()
 }
 
 function resetEditor() {
   resetCropperState()
-  cropperKey.value += 1
   void mountCropperAfterLayout()
 }
 
-async function refreshAfterLayout() {
-  await nextTick()
-  window.requestAnimationFrame(() => {
-    cropperRef.value?.refresh()
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
   })
 }
 
+async function resetCropBoxAfterLayout() {
+  await nextTick()
+  await nextFrame()
+  cropperRef.value?.goAutoCrop(240, 240)
+}
+
 async function handleConfirm() {
-  if (!cropperRef.value || confirmLoading.value) {
+  if (confirmLoading.value) {
+    return
+  }
+
+  if (!cropperRef.value || !imageLoaded.value) {
+    message.error('头像图片尚未加载完成')
     return
   }
 
   confirmLoading.value = true
 
-  // 获取裁剪后的图片
-  cropperRef.value.getCropBlob((blob: Blob) => {
-    if (!blob) {
-      confirmLoading.value = false
-      message.error('头像裁剪失败，请重试')
-      return
-    }
+  try {
+    cropperRef.value.getCropBlob((blob: Blob) => {
+      if (!blob || blob.size === 0) {
+        confirmLoading.value = false
+        message.error('头像裁剪失败，请重试')
+        return
+      }
 
-    const previewUrl = URL.createObjectURL(blob)
-    emit('confirm', { blob, previewUrl })
-    emit('update:show', false)
+      const previewUrl = URL.createObjectURL(blob)
+      emit('confirm', { blob, previewUrl })
+      emit('update:show', false)
+      confirmLoading.value = false
+    })
+  } catch {
     confirmLoading.value = false
-  })
+    message.error('头像裁剪失败，请重试')
+  }
 }
 
 function handleCancel() {
@@ -271,8 +297,20 @@ function handleShowUpdate(value: boolean) {
   emit('update:show', value)
 }
 
+function handleAfterEnter() {
+  modalEntered.value = true
+  void mountCropperAfterLayout()
+}
+
+function handleAfterLeave() {
+  modalEntered.value = false
+  resetCropperState()
+}
+
 function resetCropperState() {
+  mountVersion += 1
   cropperReady.value = false
+  activeSourceUrl.value = ''
   previewData.value = {}
   previewStyle.value = createPreviewStyle()
   imageLoaded.value = false
@@ -282,11 +320,24 @@ function resetCropperState() {
 }
 
 async function mountCropperAfterLayout() {
+  if (!props.show || !props.sourceUrl || !modalEntered.value) {
+    return
+  }
+
+  const currentVersion = ++mountVersion
+  cropperReady.value = false
+  activeSourceUrl.value = ''
   await nextTick()
-  window.requestAnimationFrame(() => {
-    cropperKey.value += 1
-    cropperReady.value = true
-  })
+  await nextFrame()
+  await nextFrame()
+
+  if (currentVersion !== mountVersion || !props.show || !props.sourceUrl || !modalEntered.value) {
+    return
+  }
+
+  activeSourceUrl.value = props.sourceUrl
+  cropperKey.value += 1
+  cropperReady.value = true
 }
 
 watch(

@@ -272,6 +272,7 @@ When adding a test framework later, start with:
 - The avatar editor should provide a visible crop box with draggable/resizable handles, and footer actions should use Naive UI buttons so they inherit theme changes correctly.
 - The avatar editor should center the selected image by default, fit the image's longest side into the edit viewport, allow dragging the image position, and allow resizing the crop box from visible handles.
 - When using `vue-cropper`, render `realTime` preview data through its provided `div`/`img` styles instead of treating the event payload as canvas source coordinates.
+- When `vue-cropper` lives inside `n-modal`, mount the cropper only after the modal `after-enter` event so the cropper measures a non-zero viewport.
 - Pass selected local avatar files to `vue-cropper` as Data URL strings; object URLs can trigger its extra image loading path and leave the workspace blank.
 - When using `vue-cropper.changeScale(...)`, pass only the incremental scale delta; do not pass an absolute slider value directly.
 - When an external slider controls `vue-cropper` scaling, disable the cropper's internal wheel scale so the visible slider state stays aligned with the actual cropper state.
