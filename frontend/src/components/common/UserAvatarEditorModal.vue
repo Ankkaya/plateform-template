@@ -61,15 +61,12 @@
         <div class="avatar-editor__preview-header">结果预览</div>
         <div class="avatar-editor__preview-container">
           <div class="avatar-editor__preview-box" :style="previewBoxStyle">
-            <div
-              v-if="previewData.url"
-              class="avatar-editor__preview-viewport"
-              :style="previewInnerStyle"
+            <img
+              v-if="previewDataUrl"
+              :src="previewDataUrl"
+              alt="头像预览"
+              class="avatar-editor__preview-image"
             >
-              <div :style="previewData.div">
-                <img :src="previewData.url" :style="previewData.img" alt="头像预览">
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -117,6 +114,7 @@ interface CropperInstance {
   rotateRight: () => void
   refresh: () => void
   goAutoCrop: (width?: number, height?: number) => void
+  getCropData: (callback: (dataUrl: string) => void) => void
   getCropBlob: (callback: (blob: Blob) => void) => void
 }
 
@@ -132,23 +130,9 @@ const scale = ref(1)
 const lastScale = ref(1)
 let mountVersion = 0
 
-type StyleValue = string | number
-type StyleRecord = Record<string, StyleValue>
-type PreviewStyleRecord = StyleRecord & {
-  transform?: string
-  transformOrigin?: string
-}
+type PreviewStyleRecord = Record<string, string | number>
 
-interface CropPreviewData {
-  url?: string
-  div?: StyleRecord
-  img?: StyleRecord
-  w?: number
-  h?: number
-}
-
-const previewData = ref<CropPreviewData>({})
-const previewInnerStyle = ref<PreviewStyleRecord>({})
+const previewDataUrl = ref('')
 const previewBoxStyle: PreviewStyleRecord = {
   width: `${PREVIEW_SIZE}px`,
   height: `${PREVIEW_SIZE}px`,
@@ -158,22 +142,10 @@ const previewBoxStyle: PreviewStyleRecord = {
   border: '1px solid var(--n-border-color, rgba(148, 163, 184, 0.3))',
   background: 'var(--n-color-embedded, #f8fafc)',
 }
+let previewRafId: number | null = null
 
-function handleRealTime(data: CropPreviewData) {
-  previewData.value = data
-
-  if (!data.w || !data.h) {
-    previewInnerStyle.value = {}
-    return
-  }
-
-  const previewScale = Math.min(PREVIEW_SIZE / data.w, PREVIEW_SIZE / data.h)
-  previewInnerStyle.value = {
-    width: `${data.w}px`,
-    height: `${data.h}px`,
-    transform: `scale(${previewScale})`,
-    transformOrigin: 'top left',
-  }
+function handleRealTime() {
+  schedulePreviewUpdate()
 }
 
 function handleImageLoad(status?: string) {
@@ -244,6 +216,32 @@ async function resetCropBoxAfterLayout() {
   await nextTick()
   await nextFrame()
   cropperRef.value?.goAutoCrop(240, 240)
+  schedulePreviewUpdate()
+}
+
+function schedulePreviewUpdate() {
+  if (previewRafId !== null) {
+    window.cancelAnimationFrame(previewRafId)
+  }
+
+  previewRafId = window.requestAnimationFrame(() => {
+    previewRafId = null
+    updatePreview()
+  })
+}
+
+function updatePreview() {
+  if (!cropperRef.value || !imageLoaded.value) {
+    return
+  }
+
+  try {
+    cropperRef.value.getCropData((dataUrl: string) => {
+      previewDataUrl.value = dataUrl || ''
+    })
+  } catch {
+    previewDataUrl.value = ''
+  }
 }
 
 async function handleConfirm() {
@@ -305,8 +303,11 @@ function resetCropperState() {
   mountVersion += 1
   cropperReady.value = false
   activeSourceUrl.value = ''
-  previewData.value = {}
-  previewInnerStyle.value = {}
+  previewDataUrl.value = ''
+  if (previewRafId !== null) {
+    window.cancelAnimationFrame(previewRafId)
+    previewRafId = null
+  }
   imageLoaded.value = false
   confirmLoading.value = false
   scale.value = 1
@@ -418,8 +419,11 @@ watch(
   background: var(--n-color-embedded, #f8fafc);
 }
 
-.avatar-editor__preview-viewport {
-  flex: none;
+.avatar-editor__preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 :deep(.vue-cropper) {
@@ -431,6 +435,10 @@ watch(
 :deep(.cropper-crop-box),
 :deep(.cropper-view-box) {
   outline-color: var(--n-primary-color, #2080f0);
+}
+
+:deep(.crop-info) {
+  display: none !important;
 }
 
 :deep(.cropper-face) {
