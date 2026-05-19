@@ -43,7 +43,14 @@
         <div class="avatar-editor__toolbar">
           <div class="avatar-editor__control-group">
             <span class="avatar-editor__label">缩放</span>
-            <n-slider v-model:value="scale" :min="0.1" :max="3" :step="0.01" @update:value="handleScaleChange" />
+            <n-slider
+              v-model:value="scale"
+              :min="0.1"
+              :max="3"
+              :step="0.01"
+              :tooltip="false"
+              @update:value="handleScaleChange"
+            />
           </div>
 
           <n-space>
