@@ -7,14 +7,22 @@
     <PageTableCard
       v-model:column-setting-value="checkedColumnKeys"
       :column-setting-options="columnOptions"
+      export-permission="system:role:export"
+      batch-delete-permission="system:role:batch-delete"
+      :selected-count="selectedRowKeys.length"
       @reset-columns="resetColumnSettings"
+      @export="handleExport"
+      @batch-delete="handleBatchDelete"
     >
       <n-data-table
         :columns="columns"
         :data="roles"
         :loading="loading"
         :scroll-x="tableScrollX"
+        :row-key="(row: Role) => row.id"
+        :checked-row-keys="selectedRowKeys"
         striped
+        @update:checked-row-keys="handleSelectedRowKeysUpdate"
       />
     </PageTableCard>
 
@@ -89,11 +97,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, h, computed, type VNode } from 'vue'
-import type { DataTableColumns, FormInst, FormRules, TreeOption } from 'naive-ui'
+import type { DataTableColumns, DataTableRowKey, FormInst, FormRules, TreeOption } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
 import { NButton, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
-import { getRoles, createRole, updateRole, deleteRole, getRoleMenus, assignRoleMenus } from '@/api/roles'
+import { getRoles, createRole, updateRole, deleteRole, batchDeleteRoles, getRoleMenus, assignRoleMenus } from '@/api/roles'
 import { getMenus } from '@/api/menu'
 import type { Role, Menu } from '@/types'
 import PageToolbar from '@/components/common/PageToolbar.vue'
@@ -101,6 +109,7 @@ import PageTableCard from '@/components/common/PageTableCard.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
+import { exportCsv } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -113,6 +122,7 @@ const dialogVisible = ref(false)
 const permissionDialogVisible = ref(false)
 const isEdit = ref(false)
 const roles = ref<Role[]>([])
+const selectedRowKeys = ref<DataTableRowKey[]>([])
 const menus = ref<Menu[]>([])
 const selectedMenuIds = ref<number[]>([])
 const formRef = ref<FormInst>()
@@ -152,6 +162,7 @@ const menuTreeOptions = computed<TreeOption[]>(() => convertToTreeOptions(menus.
 // 表格列定义
 const createColumns = (): DataTableColumns<Role> => {
   return autoFitTableColumns([
+    { type: 'selection', width: 48, fixed: 'left' },
     { title: 'ID', key: 'id' },
     { title: '角色名称', key: 'name' },
     { title: '角色编码', key: 'code' },
@@ -216,6 +227,7 @@ const fetchRoles = async () => {
   try {
     const res = await getRoles()
     roles.value = res
+    selectedRowKeys.value = []
   } catch (error) {
     message.error('获取角色列表失败')
   } finally {
@@ -225,6 +237,44 @@ const fetchRoles = async () => {
 
 const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const handleSelectedRowKeysUpdate = (keys: DataTableRowKey[]) => {
+  selectedRowKeys.value = keys
+}
+
+const handleExport = () => {
+  exportCsv('角色管理', roles.value, [
+    { title: 'ID', value: 'id' },
+    { title: '角色名称', value: 'name' },
+    { title: '角色编码', value: 'code' },
+    { title: '描述', value: row => row.description || '' },
+    { title: '创建时间', value: row => formatDate(row.createdAt) },
+  ])
+}
+
+const handleBatchDelete = () => {
+  const ids = selectedRowKeys.value.map(Number)
+  if (ids.length === 0) {
+    message.warning('请先选择要删除的角色')
+    return
+  }
+
+  dialog.warning({
+    title: '提示',
+    content: `确定要删除选中的 ${ids.length} 个角色吗?`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await batchDeleteRoles(ids)
+        message.success('批量删除成功')
+        await fetchRoles()
+      } catch (error: any) {
+        message.error(error.message || '批量删除失败')
+      }
+    }
+  })
 }
 
 const handleCreate = () => {

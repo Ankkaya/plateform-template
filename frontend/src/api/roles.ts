@@ -1,5 +1,5 @@
 import api from './request'
-import type { RoleApi, CreateRoleParams, UpdateRoleParams, AssignRoleMenusParams } from '@/types/api/index.ts'
+import type { RoleApi, CreateRoleParams, UpdateRoleParams, AssignRoleMenusParams, BatchDeleteRolesParams } from '@/types/api/index.ts'
 
 // 获取角色列表
 export const getRoles = () => {
@@ -24,6 +24,11 @@ export const updateRole = (id: number, data: UpdateRoleParams) => {
 // 删除角色
 export const deleteRole = (id: number) => {
   return api.delete<RoleApi.Delete>(`/roles/${id}`)
+}
+
+export const batchDeleteRoles = (ids: number[]) => {
+  const data: BatchDeleteRolesParams = { ids }
+  return api.delete<RoleApi.BatchDelete>('/roles/batch', { data })
 }
 
 // 获取角色菜单

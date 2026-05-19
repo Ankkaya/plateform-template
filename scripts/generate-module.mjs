@@ -8,6 +8,8 @@ const ACTIONS = [
   ['create', '新增'],
   ['update', '编辑'],
   ['delete', '删除'],
+  ['export', '导出'],
+  ['batch-delete', '批量删除'],
 ];
 
 function upperFirst(value) {
@@ -374,6 +376,28 @@ export class ${config.classPluralName}Service {
 
     return ${config.className}Vo.fromEntity(entity);
   }
+
+  async removeMany(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      return { count: 0, ids: [] };
+    }
+
+    const existingCount = await this.prisma.${config.prismaName}.count({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+    });
+
+    if (existingCount !== uniqueIds.length) {
+      throw new NotFoundException('部分${config.title}不存在');
+    }
+
+    const result = await this.prisma.${config.prismaName}.updateMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    return { count: result.count, ids: uniqueIds };
+  }
 }
 `;
 }
@@ -381,6 +405,7 @@ export class ${config.classPluralName}Service {
 function backendControllerTemplate(config) {
   return `import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BatchIdsDto } from '@/common/dto/batch-ids.dto';
 import { RequirePermissions } from '@/auth/decorators/permissions.decorator';
 import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '@/auth/guards/permissions.guard';
@@ -426,6 +451,13 @@ export class ${config.classPluralName}Controller {
   @ApiOkResponse({ type: ${config.className}Vo })
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: Update${config.className}Dto) {
     return this.${config.camelPluralName}Service.update(id, dto);
+  }
+
+  @Delete('batch')
+  @RequirePermissions('${config.permissionPrefix}:batch-delete')
+  @ApiOperation({ summary: '批量删除${config.title}' })
+  removeMany(@Body() dto: BatchIdsDto) {
+    return this.${config.camelPluralName}Service.removeMany(dto.ids);
   }
 
   @Delete(':id')
@@ -475,6 +507,10 @@ export interface Query${config.classPluralName}Params {
   isEnabled?: boolean
 }
 
+export interface BatchDelete${config.classPluralName}Params {
+  ids: number[]
+}
+
 export interface ${config.className}Page {
   list: ${config.className}[]
   total: number
@@ -491,6 +527,7 @@ export namespace ${config.classPluralName}Api {
   export type Create = ${config.className}
   export type Update = ${config.className}
   export type Delete = ${config.className}
+  export type BatchDelete = { count: number; ids: number[] }
 }
 `;
 }
@@ -500,6 +537,7 @@ function frontendApiTemplate(config) {
 import type {
   Create${config.className}Params,
   ${config.classPluralName}Api,
+  BatchDelete${config.classPluralName}Params,
   Query${config.classPluralName}Params,
   Update${config.className}Params,
 } from '@/types/api/${config.domainName}.api'
@@ -522,6 +560,11 @@ export const update${config.className} = (id: number, data: Update${config.class
 
 export const delete${config.className} = (id: number) => {
   return api.delete<${config.classPluralName}Api.Delete>(\`/${config.apiPath}/\${id}\`)
+}
+
+export const batchDelete${config.classPluralName} = (ids: number[]) => {
+  const data: BatchDelete${config.classPluralName}Params = { ids }
+  return api.delete<${config.classPluralName}Api.BatchDelete>('/${config.apiPath}/batch', { data })
 }
 `;
 }
@@ -556,14 +599,22 @@ function frontendPageTemplate(config) {
     <PageTableCard
       v-model:column-setting-value="checkedColumnKeys"
       :column-setting-options="columnOptions"
+      export-permission="${config.permissionPrefix}:export"
+      batch-delete-permission="${config.permissionPrefix}:batch-delete"
+      :selected-count="selectedRowKeys.length"
       @reset-columns="resetColumnSettings"
+      @export="handleExport"
+      @batch-delete="handleBatchDelete"
     >
       <n-data-table
         :columns="columns"
         :data="list"
         :loading="loading"
         :scroll-x="tableScrollX"
+        :row-key="(row: ${config.className}) => row.id"
+        :checked-row-keys="selectedRowKeys"
         striped
+        @update:checked-row-keys="handleSelectedRowKeysUpdate"
       />
       <template #footer>
         <PagePagination
@@ -611,7 +662,7 @@ function frontendPageTemplate(config) {
 
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, type VNode } from 'vue'
-import type { FormInst, FormRules } from 'naive-ui'
+import type { DataTableRowKey, FormInst, FormRules } from 'naive-ui'
 import { NButton, NSpace, NTag, useDialog, useMessage } from 'naive-ui'
 import dayjs from 'dayjs'
 import PagePagination from '@/components/common/PagePagination.vue'
@@ -621,6 +672,7 @@ import PageTableCard from '@/components/common/PageTableCard.vue'
 import QueryForm from '@/components/common/QueryForm.vue'
 import {
   create${config.className},
+  batchDelete${config.classPluralName},
   delete${config.className},
   get${config.classPluralName},
   update${config.className},
@@ -629,6 +681,7 @@ import type { Create${config.className}Dto, ${config.className} } from '@/types/
 import { useAuthStore } from '@/store'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
+import { exportCsv } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -644,6 +697,7 @@ const submitLoading = ref(false)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const list = ref<${config.className}[]>([])
+const selectedRowKeys = ref<DataTableRowKey[]>([])
 const currentId = ref<number>()
 const formRef = ref<FormInst>()
 
@@ -688,6 +742,7 @@ const renderStatus = (isEnabled: boolean) => {
 const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 
 const baseColumns = autoFitTableColumns<${config.className}>([
+  { type: 'selection', width: 48, fixed: 'left' },
   { title: '名称', key: 'name' },
   {
     title: '状态',
@@ -740,6 +795,7 @@ async function fetchList() {
     const res = await get${config.classPluralName}(queryParams.value)
     list.value = res.list
     pagination.total = res.total
+    selectedRowKeys.value = []
   } catch (error: any) {
     message.error(error.message || '获取${config.title}列表失败')
   } finally {
@@ -763,6 +819,44 @@ function resetQuery() {
   query.isEnabled = null
   pagination.page = 1
   fetchList()
+}
+
+function handleSelectedRowKeysUpdate(keys: DataTableRowKey[]) {
+  selectedRowKeys.value = keys
+}
+
+function handleExport() {
+  exportCsv('${config.title}', list.value, [
+    { title: 'ID', value: 'id' },
+    { title: '名称', value: 'name' },
+    { title: '状态', value: row => (row.isEnabled ? '启用' : '停用') },
+    { title: '排序', value: 'sort' },
+    { title: '创建时间', value: row => formatDate(row.createdAt) },
+  ])
+}
+
+function handleBatchDelete() {
+  const ids = selectedRowKeys.value.map(Number)
+  if (ids.length === 0) {
+    message.warning('请先选择要删除的数据')
+    return
+  }
+
+  dialog.warning({
+    title: '提示',
+    content: \`确定要删除选中的 \${ids.length} 条数据吗?\`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await batchDelete${config.classPluralName}(ids)
+        message.success('批量删除成功')
+        await fetchList()
+      } catch (error: any) {
+        message.error(error.message || '批量删除失败')
+      }
+    },
+  })
 }
 
 function resetForm() {

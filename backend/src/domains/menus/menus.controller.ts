@@ -16,6 +16,7 @@ import { UpdateMenuDto } from './dto/update-menu.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { BatchIdsDto } from '@/common/dto/batch-ids.dto';
 
 @ApiTags('后台接口/菜单管理')
 @Controller('menus')
@@ -54,6 +55,13 @@ export class MenusController {
   @ApiOperation({ summary: '更新菜单' })
   update(@Param('id') id: string, @Body() updateMenuDto: UpdateMenuDto) {
     return this.menusService.update(+id, updateMenuDto);
+  }
+
+  @Delete('batch')
+  @RequirePermissions('system:menu:batch-delete')
+  @ApiOperation({ summary: '批量删除菜单' })
+  removeMany(@Body() dto: BatchIdsDto) {
+    return this.menusService.removeMany(dto.ids);
   }
 
   @Delete(':id')

@@ -203,6 +203,47 @@ export class UsersService {
     return { id, message: '用户已删除' };
   }
 
+  async removeMany(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      return { count: 0, ids: [] };
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      include: { roles: true },
+    });
+
+    if (users.length !== uniqueIds.length) {
+      throw new NotFoundException('部分用户不存在或已删除');
+    }
+
+    const adminRole = await this.prisma.role.findUnique({
+      where: { code: 'admin' },
+      include: {
+        users: {
+          where: { deletedAt: null },
+          select: { id: true },
+        },
+      },
+    });
+
+    if (adminRole) {
+      const deletingIds = new Set(uniqueIds);
+      const remainingAdminCount = adminRole.users.filter(user => !deletingIds.has(user.id)).length;
+      if (remainingAdminCount === 0 && users.some(user => user.roles.some(role => role.id === adminRole.id))) {
+        throw new ConflictException('不能删除最后一个管理员');
+      }
+    }
+
+    const result = await this.prisma.user.updateMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    return { count: result.count, ids: uniqueIds };
+  }
+
   // 获取用户完整信息（包括角色）
   async findUserWithRoles(userId: number) {
     const user = await this.prisma.user.findFirst({

@@ -148,6 +148,32 @@ export class RolesService {
     return role;
   }
 
+  async removeMany(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      return { count: 0, ids: [] };
+    }
+
+    const roles = await this.prisma.role.findMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+    });
+
+    if (roles.length !== uniqueIds.length) {
+      throw new NotFoundException('部分角色不存在或已删除');
+    }
+
+    if (roles.some(role => role.code === 'admin')) {
+      throw new ConflictException('不能删除系统默认角色');
+    }
+
+    const result = await this.prisma.role.updateMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    return { count: result.count, ids: uniqueIds };
+  }
+
   // 根据角色编码查找
   async findByCode(code: string) {
     const role = await this.prisma.role.findUnique({

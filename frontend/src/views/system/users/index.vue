@@ -7,14 +7,22 @@
     <PageTableCard
       v-model:column-setting-value="checkedColumnKeys"
       :column-setting-options="columnOptions"
+      export-permission="system:user:export"
+      batch-delete-permission="system:user:batch-delete"
+      :selected-count="selectedRowKeys.length"
       @reset-columns="resetColumnSettings"
+      @export="handleExport"
+      @batch-delete="handleBatchDelete"
     >
       <n-data-table
         :columns="columns"
         :data="users"
         :loading="loading"
         :scroll-x="tableScrollX"
+        :row-key="(row: User) => row.id"
+        :checked-row-keys="selectedRowKeys"
         striped
+        @update:checked-row-keys="handleSelectedRowKeysUpdate"
       />
       <template #footer>
         <PagePagination
@@ -171,7 +179,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, h, type VNode } from 'vue'
-import type { DataTableColumns, FormInst, FormRules } from 'naive-ui'
+import type { DataTableColumns, DataTableRowKey, FormInst, FormRules } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
 import { NAvatar, NButton, NIcon, NImage, NSpace } from 'naive-ui'
 import dayjs from 'dayjs'
@@ -182,6 +190,7 @@ import {
   updateUser,
   resetUserPassword,
   deleteUser,
+  batchDeleteUsers,
   getUserRoles,
   assignUserRoles,
 } from '@/api/user'
@@ -196,6 +205,7 @@ import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
 import { resolveFileUrl } from '@/utils/file-url'
+import { exportCsv } from '@/utils/export'
 
 const ALLOWED_AVATAR_TYPES = new Set([
   'image/jpeg',
@@ -220,6 +230,7 @@ const passwordDialogVisible = ref(false)
 const avatarEditorVisible = ref(false)
 const isEdit = ref(false)
 const users = ref<User[]>([])
+const selectedRowKeys = ref<DataTableRowKey[]>([])
 const allRoles = ref<Role[]>([])
 const selectedRoleIds = ref<number[]>([])
 const formRef = ref<FormInst>()
@@ -294,6 +305,7 @@ const formAvatarDisplayUrl = computed(() => {
 // 表格列定义
 const createColumns = (): DataTableColumns<User> => {
   return autoFitTableColumns([
+    { type: 'selection', width: 48, fixed: 'left' },
     { title: 'ID', key: 'id' },
     {
       title: '头像',
@@ -398,6 +410,7 @@ const fetchUsers = async () => {
     })
     users.value = res.items
     pagination.total = res.total
+    selectedRowKeys.value = []
   } catch (error) {
     message.error('获取用户列表失败')
   } finally {
@@ -416,8 +429,46 @@ const handlePageChange = (page: number) => {
   fetchUsers()
 }
 
+const handleSelectedRowKeysUpdate = (keys: DataTableRowKey[]) => {
+  selectedRowKeys.value = keys
+}
+
 const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+}
+
+const handleExport = () => {
+  exportCsv('用户管理', users.value, [
+    { title: 'ID', value: 'id' },
+    { title: '用户名', value: 'username' },
+    { title: '邮箱', value: row => row.email || '' },
+    { title: '姓名', value: row => row.name || '' },
+    { title: '创建时间', value: row => formatDate(row.createdAt) },
+  ])
+}
+
+const handleBatchDelete = () => {
+  const ids = selectedRowKeys.value.map(Number)
+  if (ids.length === 0) {
+    message.warning('请先选择要删除的用户')
+    return
+  }
+
+  dialog.warning({
+    title: '提示',
+    content: `确定要删除选中的 ${ids.length} 个用户吗?`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await batchDeleteUsers(ids)
+        message.success('批量删除成功')
+        await fetchUsers()
+      } catch (error: any) {
+        message.error(error.message || '批量删除失败')
+      }
+    }
+  })
 }
 
 const resetUserForm = () => {

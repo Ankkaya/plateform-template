@@ -120,6 +120,40 @@ export class MenusService {
     return menu;
   }
 
+  async removeMany(ids: number[]) {
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      return { count: 0, ids: [] };
+    }
+
+    const menus = await this.prisma.menu.findMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+    });
+
+    if (menus.length !== uniqueIds.length) {
+      throw new NotFoundException('部分菜单不存在或已删除');
+    }
+
+    const childCount = await this.prisma.menu.count({
+      where: {
+        parentId: { in: uniqueIds },
+        deletedAt: null,
+        id: { notIn: uniqueIds },
+      },
+    });
+
+    if (childCount > 0) {
+      throw new Error('不能删除存在子菜单的菜单');
+    }
+
+    const result = await this.prisma.menu.updateMany({
+      where: { id: { in: uniqueIds }, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    return { count: result.count, ids: uniqueIds };
+  }
+
   // 根据角色ID获取菜单
   async findMenusByRoleId(roleId: number) {
     const role = await this.prisma.role.findUnique({

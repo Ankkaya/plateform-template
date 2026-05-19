@@ -38,6 +38,10 @@ export interface AssignUserRolesParams {
   roleIds: number[];
 }
 
+export interface BatchDeleteUsersParams {
+  ids: number[];
+}
+
 /**
  * 查询用户列表参数
  */
@@ -61,6 +65,8 @@ export namespace UserApi {
   export type ResetPassword = User;
   /** 删除用户 */
   export type Delete = void;
+  /** 批量删除用户 */
+  export type BatchDelete = { count: number; ids: number[] };
   /** 获取用户角色 */
   export type GetRoles = Role[];
   /** 分配用户角色 */

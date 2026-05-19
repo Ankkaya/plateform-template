@@ -16,6 +16,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { BatchIdsDto } from '@/common/dto/batch-ids.dto';
 
 @ApiTags('后台接口/角色管理')
 @Controller('roles')
@@ -50,6 +51,13 @@ export class RolesController {
   @ApiOperation({ summary: '更新角色' })
   update(@Param('id') id: string, @Body() updateRoleDto: UpdateRoleDto) {
     return this.rolesService.update(+id, updateRoleDto);
+  }
+
+  @Delete('batch')
+  @RequirePermissions('system:role:batch-delete')
+  @ApiOperation({ summary: '批量删除角色' })
+  removeMany(@Body() dto: BatchIdsDto) {
+    return this.rolesService.removeMany(dto.ids);
   }
 
   @Delete(':id')

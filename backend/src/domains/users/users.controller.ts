@@ -18,6 +18,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+import { BatchIdsDto } from '@/common/dto/batch-ids.dto';
 
 @ApiTags('后台接口/用户管理')
 @Controller('users')
@@ -65,6 +66,13 @@ export class UsersController {
   @ApiOperation({ summary: '重置用户密码' })
   resetPassword(@Param('id') id: string, @Body() resetUserPasswordDto: ResetUserPasswordDto) {
     return this.usersService.resetPassword(+id, resetUserPasswordDto.password);
+  }
+
+  @Delete('batch')
+  @RequirePermissions('system:user:batch-delete')
+  @ApiOperation({ summary: '批量删除用户' })
+  removeMany(@Body() dto: BatchIdsDto) {
+    return this.usersService.removeMany(dto.ids);
   }
 
   @Delete(':id')

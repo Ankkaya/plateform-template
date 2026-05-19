@@ -94,12 +94,13 @@ When adding a nullable field that existing environments need, create a migration
 ### 2. Signatures
 - DB: `Menu.permission String?`
 - Migration: add nullable text column plus `Menu_permission_idx`.
-- Seed: page menus use `*:view`; button permissions use action codes such as `system:user:create`.
+- Seed: page menus use `*:view`; button permissions use action codes such as `system:user:create`, `*:export`, and `*:batch-delete`.
 
 ### 3. Contracts
 - Page menu: `type = "menu"`, `path` points to a frontend route, `permission` is the page view permission.
 - Button permission: `type = "button"`, `hidden = true`, `parentId` points to the page menu, `permission` is required.
 - Admin role code `admin` bypasses per-permission checks, but seed must still assign all menus to admin.
+- Batch delete endpoints use `DELETE <resource>/batch`, require `*:batch-delete`, accept `{ ids: number[] }`, validate all active records exist, and soft-delete with `deletedAt`.
 
 ### 4. Validation & Error Matrix
 - Missing endpoint permission metadata -> endpoint is authenticated only.

@@ -41,7 +41,7 @@
   - `frontend/src/router/index.ts`
   - `backend/prisma/seed.ts`
 - The CLI must print manual follow-up steps for Prisma model, Nest registration, route registration, menu row, and button permissions.
-- Generated backend controllers use `JwtAuthGuard`, `PermissionsGuard`, and `@RequirePermissions('<prefix>:<action>')`.
+- Generated backend controllers use `JwtAuthGuard`, `PermissionsGuard`, and `@RequirePermissions('<prefix>:<action>')`, including `:batch-delete` for `DELETE <resource>/batch`.
 - Generated frontend pages gate buttons with `authStore.hasPermission(...)`.
 - Generated frontend CRUD pages should prefer the shared layout components:
   - `PageSearchCard` for the search shell
@@ -50,6 +50,7 @@
   - `PageTableCard` for the table shell and column settings
   - `PagePagination` for footer pagination
 - Generated frontend CRUD pages should use `useTableColumnSettings` instead of manually placing `TableColumnSettings` or computing scroll width from raw columns.
+- Generated frontend CRUD pages should pass `exportPermission`, `batchDeletePermission`, `selectedCount`, and the matching events to `PageTableCard`; row selection belongs to the page-owned `n-data-table`.
 
 ### 4. Validation & Error Matrix
 - Missing required option -> command exits non-zero with a clear `Missing required option` message.
@@ -71,6 +72,7 @@
   - permission strings in backend/frontend templates
   - generated frontend template usage of `PageToolbar`, `PageSearchCard`, `PageTableCard`, and `useTableColumnSettings`
   - generated frontend template usage of `PagePagination`
+  - generated batch delete backend/frontend contracts and `export` / `batch-delete` permission strings
   - `--dry-run` no-write behavior
   - overwrite refusal
 - Run backend `pnpm exec tsc --noEmit` and frontend `pnpm exec vue-tsc --noEmit` after changing templates that mirror project imports or shared utilities.

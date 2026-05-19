@@ -28,6 +28,7 @@ export type {
   UpdateUserParams,
   ResetUserPasswordParams,
   AssignUserRolesParams,
+  BatchDeleteUsersParams,
   QueryUserParams,
 } from './user.api';
 
@@ -37,6 +38,7 @@ export type {
   CreateRoleParams,
   UpdateRoleParams,
   AssignRoleMenusParams,
+  BatchDeleteRolesParams,
 } from './role.api';
 
 // 字典 API 类型
@@ -56,6 +58,7 @@ export type {
   CreateMenuParams,
   UpdateMenuParams,
   QueryMenuParams,
+  BatchDeleteMenusParams,
 } from './menu.api';
 
 // 基础数据 API 类型

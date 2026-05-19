@@ -30,6 +30,10 @@ export interface UpdateMenuParams extends Partial<CreateMenuParams> {}
  */
 export interface QueryMenuParams extends TreeQueryParams {}
 
+export interface BatchDeleteMenusParams {
+  ids: number[];
+}
+
 /**
  * 菜单 API 命名空间
  */
@@ -44,4 +48,6 @@ export namespace MenuApi {
   export type Update = Menu;
   /** 删除菜单 */
   export type Delete = void;
+  /** 批量删除菜单 */
+  export type BatchDelete = { count: number; ids: number[] };
 }

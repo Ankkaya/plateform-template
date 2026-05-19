@@ -28,6 +28,10 @@ export interface AssignRoleMenusParams {
   menuIds: number[];
 }
 
+export interface BatchDeleteRolesParams {
+  ids: number[];
+}
+
 /**
  * 角色 API 命名空间
  */
@@ -42,6 +46,8 @@ export namespace RoleApi {
   export type Update = Role;
   /** 删除角色 */
   export type Delete = void;
+  /** 批量删除角色 */
+  export type BatchDelete = { count: number; ids: number[] };
   /** 获取角色菜单 */
   export type GetMenus = Menu[];
   /** 分配角色菜单 */

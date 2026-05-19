@@ -1,5 +1,5 @@
 import api from './request'
-import type { MenuApi, CreateMenuParams, UpdateMenuParams, QueryMenuParams } from '@/types/api/index.ts'
+import type { MenuApi, CreateMenuParams, UpdateMenuParams, QueryMenuParams, BatchDeleteMenusParams } from '@/types/api/index.ts'
 
 // 获取菜单列表
 // format: 'tree' | 'flat' - tree: 树形结构(默认), flat: 扁平列表
@@ -30,6 +30,11 @@ export const updateMenu = (id: number, data: UpdateMenuParams) => {
 // 删除菜单
 export const deleteMenu = (id: number) => {
   return api.delete<MenuApi.Delete>(`/menus/${id}`)
+}
+
+export const batchDeleteMenus = (ids: number[]) => {
+  const data: BatchDeleteMenusParams = { ids }
+  return api.delete<MenuApi.BatchDelete>('/menus/batch', { data })
 }
 
 // 根据角色获取菜单 - 已迁移到 roles.ts，保留别名以兼容旧代码

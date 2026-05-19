@@ -6,6 +6,7 @@ import type {
   UpdateUserParams,
   ResetUserPasswordParams,
   AssignUserRolesParams,
+  BatchDeleteUsersParams,
 } from '@/types/api/index.ts'
 
 // 获取用户列表
@@ -52,6 +53,11 @@ export const resetUserPassword = (id: number, data: ResetUserPasswordParams) => 
 // 删除用户
 export const deleteUser = (id: number) => {
   return api.delete<UserApi.Delete>(`/users/${id}`)
+}
+
+export const batchDeleteUsers = (ids: number[]) => {
+  const data: BatchDeleteUsersParams = { ids }
+  return api.delete<UserApi.BatchDelete>('/users/batch', { data })
 }
 
 // 获取用户角色

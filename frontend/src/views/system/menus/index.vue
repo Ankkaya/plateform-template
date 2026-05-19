@@ -7,7 +7,12 @@
     <PageTableCard
       v-model:column-setting-value="checkedColumnKeys"
       :column-setting-options="columnOptions"
+      export-permission="system:menu:export"
+      batch-delete-permission="system:menu:batch-delete"
+      :selected-count="selectedRowKeys.length"
       @reset-columns="resetColumnSettings"
+      @export="handleExport"
+      @batch-delete="handleBatchDelete"
     >
       <n-data-table
         :columns="columns"
@@ -16,7 +21,9 @@
         :scroll-x="tableScrollX"
         striped
         :row-key="(row: Menu) => row.id"
+        :checked-row-keys="selectedRowKeys"
         default-expand-all
+        @update:checked-row-keys="handleSelectedRowKeysUpdate"
       />
     </PageTableCard>
 
@@ -127,11 +134,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, h, type VNode } from 'vue'
-import type { DataTableColumns, FormInst, FormRules, TreeSelectOption } from 'naive-ui'
+import type { DataTableColumns, DataTableRowKey, FormInst, FormRules, TreeSelectOption } from 'naive-ui'
 import { useMessage, useDialog } from 'naive-ui'
 import { NButton, NSpace, NTag } from 'naive-ui'
 import SmartFormContainer from '@/components/common/SmartFormContainer.vue'
-import { getMenus, createMenu, updateMenu, deleteMenu } from '@/api/menu'
+import { getMenus, createMenu, updateMenu, deleteMenu, batchDeleteMenus } from '@/api/menu'
 import AppIcon from '@/components/common/AppIcon.vue'
 import IconPicker from '@/components/common/IconPicker.vue'
 import PageToolbar from '@/components/common/PageToolbar.vue'
@@ -141,6 +148,7 @@ import type { Menu, CreateMenuDto } from '@/types'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
+import { exportCsv } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -152,6 +160,7 @@ const dialogVisible = ref(false)
 const iconPickerVisible = ref(false)
 const isEdit = ref(false)
 const menus = ref<Menu[]>([])
+const selectedRowKeys = ref<DataTableRowKey[]>([])
 const currentIconUrl = ref('')
 const formRef = ref<FormInst>()
 const currentMenuId = ref<number>()
@@ -221,6 +230,7 @@ const getTypeTagType = (type: string): 'default' | 'error' | 'primary' | 'info' 
 // 表格列定义
 const createColumns = (): DataTableColumns<Menu> => {
   return autoFitTableColumns([
+    { type: 'selection', width: 48, fixed: 'left' },
     { title: '菜单名称', key: 'name' },
     {
       title: '路由路径',
@@ -315,11 +325,58 @@ const fetchMenus = async () => {
   try {
     const res = await getMenus()
     menus.value = res
+    selectedRowKeys.value = []
   } catch (error) {
     message.error('获取菜单列表失败')
   } finally {
     loading.value = false
   }
+}
+
+const flattenMenus = (list: Menu[]): Menu[] => {
+  return list.flatMap(menu => [
+    menu,
+    ...(menu.children?.length ? flattenMenus(menu.children) : []),
+  ])
+}
+
+const handleSelectedRowKeysUpdate = (keys: DataTableRowKey[]) => {
+  selectedRowKeys.value = keys
+}
+
+const handleExport = () => {
+  exportCsv('菜单管理', flattenMenus(menus.value), [
+    { title: 'ID', value: 'id' },
+    { title: '菜单名称', value: 'name' },
+    { title: '路由路径', value: row => row.path || '' },
+    { title: '权限标识', value: row => row.permission || '' },
+    { title: '类型', value: row => getTypeLabel(row.type) },
+    { title: '排序', value: 'order' },
+  ])
+}
+
+const handleBatchDelete = () => {
+  const ids = selectedRowKeys.value.map(Number)
+  if (ids.length === 0) {
+    message.warning('请先选择要删除的菜单')
+    return
+  }
+
+  dialog.warning({
+    title: '提示',
+    content: `确定要删除选中的 ${ids.length} 个菜单吗?`,
+    positiveText: '确定',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await batchDeleteMenus(ids)
+        message.success('批量删除成功')
+        await fetchMenus()
+      } catch (error: any) {
+        message.error(error.response?.data?.message || error.message || '批量删除失败')
+      }
+    }
+  })
 }
 
 const handleCreate = (row: Menu | null) => {
