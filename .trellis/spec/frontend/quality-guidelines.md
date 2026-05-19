@@ -61,7 +61,7 @@ Run `pnpm build` only when a production build artifact or Vite packaging validat
 - Backend `Menu.path` must match a real frontend route.
 - Side navigation filters out hidden menus and `type = "button"`.
 - Menu clicks validate router registration before `router.push`.
-- Breadcrumb starts with `/dashboard`, then follows the backend menu trail when available.
+- Breadcrumb shows the current backend menu trail directly; only the dashboard route displays `首页`.
 
 ### 4. Validation & Error Matrix
 - Registered path + permission -> navigate.

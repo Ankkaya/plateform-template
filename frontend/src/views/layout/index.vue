@@ -59,16 +59,18 @@
     <main class="flex-1 flex min-w-0 min-h-0 flex-col overflow-hidden bg-layout transition-theme">
       <!-- 顶部导航 -->
       <header class="bg-container shadow-header h-16 shrink-0 flex items-center justify-between px-4 z-10 transition-theme">
-        <div class="min-w-0 flex items-center gap-3">
-          <n-button quaternary circle @click="toggleSidebarCollapsed">
-            <template #icon>
-              <n-icon class="sidebar-toggle-icon" :class="{ 'sidebar-toggle-icon--collapsed': sidebarCollapsed }">
-                <menu-outline />
-              </n-icon>
-            </template>
-          </n-button>
+        <div class="min-w-0 flex items-center">
+          <div class="header-sidebar-toggle flex shrink-0 items-center pr-3">
+            <n-button quaternary circle aria-label="折叠菜单" @click="toggleSidebarCollapsed">
+              <template #icon>
+                <n-icon class="sidebar-toggle-icon" :class="{ 'sidebar-toggle-icon--collapsed': sidebarCollapsed }">
+                  <menu-outline />
+                </n-icon>
+              </template>
+            </n-button>
+          </div>
 
-          <n-breadcrumb class="min-w-0">
+          <n-breadcrumb class="min-w-0 pl-3">
             <n-breadcrumb-item
               v-for="item in breadcrumbs"
               :key="item.path || item.title"
@@ -179,13 +181,10 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
 
   const menuTrail = authStore.findMenuTrail(route.path)
   if (menuTrail.length > 0) {
-    return [
-      { title: '首页', path: '/dashboard' },
-      ...menuTrail.map(menu => ({
-        title: menu.name,
-        path: menu.path,
-      })),
-    ]
+    return menuTrail.map(menu => ({
+      title: menu.name,
+      path: menu.path,
+    }))
   }
 
   const matched = route.matched
@@ -195,7 +194,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
       path: record.path,
     }))
 
-  return [{ title: '首页', path: '/dashboard' }, ...matched]
+  return matched
 })
 
 watch(
@@ -341,6 +340,10 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.header-sidebar-toggle {
+  border-right: 1px solid rgba(148, 163, 184, 0.32);
 }
 
 .sidebar-toggle-icon {
