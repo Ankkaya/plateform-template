@@ -10,7 +10,7 @@
       <section class="avatar-editor__panel avatar-editor__panel--workspace">
         <div class="avatar-editor__viewport">
           <VueCropper
-            v-if="sourceUrl"
+            v-if="cropperReady && sourceUrl"
             :key="cropperKey"
             ref="cropperRef"
             class="avatar-editor__cropper"
@@ -112,6 +112,7 @@ interface CropperInstance {
 const cropperRef = ref<CropperInstance | null>(null)
 
 const cropperKey = ref(0)
+const cropperReady = ref(false)
 const imageLoaded = ref(false)
 const confirmLoading = ref(false)
 const scale = ref(1)
@@ -222,13 +223,9 @@ function refreshCrop() {
 }
 
 function resetEditor() {
+  resetCropperState()
   cropperKey.value += 1
-  previewData.value = {}
-  previewStyle.value = createPreviewStyle()
-  imageLoaded.value = false
-  confirmLoading.value = false
-  scale.value = 1
-  lastScale.value = 1
+  void mountCropperAfterLayout()
 }
 
 async function refreshAfterLayout() {
@@ -274,21 +271,34 @@ function handleShowUpdate(value: boolean) {
   emit('update:show', value)
 }
 
+function resetCropperState() {
+  cropperReady.value = false
+  previewData.value = {}
+  previewStyle.value = createPreviewStyle()
+  imageLoaded.value = false
+  confirmLoading.value = false
+  scale.value = 1
+  lastScale.value = 1
+}
+
+async function mountCropperAfterLayout() {
+  await nextTick()
+  window.requestAnimationFrame(() => {
+    cropperKey.value += 1
+    cropperReady.value = true
+  })
+}
+
 watch(
   () => [props.show, props.sourceUrl] as const,
   async ([visible, sourceUrl]) => {
+    resetCropperState()
+
     if (!visible || !sourceUrl) {
       return
     }
 
-    await nextTick()
-    cropperKey.value += 1
-    previewData.value = {}
-    previewStyle.value = createPreviewStyle()
-    imageLoaded.value = false
-    confirmLoading.value = false
-    scale.value = 1
-    lastScale.value = 1
+    await mountCropperAfterLayout()
   },
   { immediate: true },
 )

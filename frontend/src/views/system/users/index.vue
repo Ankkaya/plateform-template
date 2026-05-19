@@ -510,19 +510,31 @@ const revokeObjectUrl = (url: string) => {
 }
 
 const clearAvatarAssets = () => {
-  revokeObjectUrl(avatarEditorSourceUrl.value)
-  revokeObjectUrl(avatarPreviewUrl.value)
   avatarEditorSourceUrl.value = ''
+  revokeObjectUrl(avatarPreviewUrl.value)
   avatarPreviewUrl.value = ''
   pendingAvatarBlob.value = null
 }
 
 const clearAvatarEditorSource = () => {
-  revokeObjectUrl(avatarEditorSourceUrl.value)
   avatarEditorSourceUrl.value = ''
 }
 
-const handleAvatarSelected = (event: Event) => {
+const readFileAsDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      resolve(reader.result)
+      return
+    }
+
+    reject(new Error('头像图片读取失败'))
+  }
+  reader.onerror = () => reject(new Error('头像图片读取失败'))
+  reader.readAsDataURL(file)
+})
+
+const handleAvatarSelected = async (event: Event) => {
   const input = event.target as HTMLInputElement | null
   const file = input?.files?.[0]
   if (!file) {
@@ -541,9 +553,12 @@ const handleAvatarSelected = (event: Event) => {
     return
   }
 
-  revokeObjectUrl(avatarEditorSourceUrl.value)
-  avatarEditorSourceUrl.value = URL.createObjectURL(file)
-  avatarEditorVisible.value = true
+  try {
+    avatarEditorSourceUrl.value = await readFileAsDataUrl(file)
+    avatarEditorVisible.value = true
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '头像图片读取失败')
+  }
 
   if (input) {
     input.value = ''
