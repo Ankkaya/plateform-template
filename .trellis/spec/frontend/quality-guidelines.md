@@ -271,6 +271,10 @@ When adding a test framework later, start with:
 - The empty image-picker state should use a plus-style icon without placeholder text or decorative grid text.
 - The avatar editor should provide a visible crop box with draggable/resizable handles, and footer actions should use Naive UI buttons so they inherit theme changes correctly.
 - The avatar editor should center the selected image by default, fit the image's longest side into the edit viewport, allow dragging the image position, and allow resizing the crop box from visible handles.
+- When using `vue-cropper`, render `realTime` preview data through its provided `div`/`img` styles instead of treating the event payload as canvas source coordinates.
+- When using `vue-cropper.changeScale(...)`, pass only the incremental scale delta; do not pass an absolute slider value directly.
+- When an external slider controls `vue-cropper` scaling, disable the cropper's internal wheel scale so the visible slider state stays aligned with the actual cropper state.
+- Avatar editor previews should use standard `transform: scale(...)` instead of non-standard CSS `zoom`.
 - User list rows with `avatarUrl` should render a fixed-size clickable preview image; only rows without `avatarUrl` should fall back to text avatars.
 - The create/edit form should keep the edited avatar as a local preview first, then upload it only when the user submits the form successfully.
 - The create flow should upload the selected image first, then persist the returned `url` as `avatarUrl` through `POST /users`.

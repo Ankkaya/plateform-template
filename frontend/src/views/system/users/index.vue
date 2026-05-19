@@ -173,6 +173,7 @@
       v-model:show="avatarEditorVisible"
       :source-url="avatarEditorSourceUrl"
       @confirm="handleAvatarEditorConfirm"
+      @cancel="handleAvatarEditorCancel"
     />
   </div>
 </template>
@@ -516,6 +517,11 @@ const clearAvatarAssets = () => {
   pendingAvatarBlob.value = null
 }
 
+const clearAvatarEditorSource = () => {
+  revokeObjectUrl(avatarEditorSourceUrl.value)
+  avatarEditorSourceUrl.value = ''
+}
+
 const handleAvatarSelected = (event: Event) => {
   const input = event.target as HTMLInputElement | null
   const file = input?.files?.[0]
@@ -545,10 +551,15 @@ const handleAvatarSelected = (event: Event) => {
 }
 
 const handleAvatarEditorConfirm = (payload: { blob: Blob; previewUrl: string }) => {
+  clearAvatarEditorSource()
   revokeObjectUrl(avatarPreviewUrl.value)
   avatarPreviewUrl.value = payload.previewUrl
   pendingAvatarBlob.value = payload.blob
   form.avatarUrl = null
+}
+
+const handleAvatarEditorCancel = () => {
+  clearAvatarEditorSource()
 }
 
 const uploadPendingAvatarIfNeeded = async () => {
