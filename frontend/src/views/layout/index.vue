@@ -29,10 +29,10 @@
 
     <!-- 左侧菜单 -->
     <aside
-      class="shrink-0 flex flex-col overflow-hidden bg-container border-r border-gray-200 dark:border-gray-700 shadow-sider transition-theme"
+      class="layout-sidebar shrink-0 flex flex-col overflow-hidden bg-container shadow-sider transition-theme"
       :style="{ width: `${sidebarWidth}px` }"
     >
-      <div class="sidebar-brand h-16 shrink-0 flex items-center border-b border-gray-200 px-4 dark:border-gray-700 transition-theme">
+      <div class="sidebar-brand h-16 shrink-0 flex items-center px-4 transition-theme">
         <div class="sidebar-brand__icon">
           <n-icon :size="22">
             <apps-outline />
@@ -59,8 +59,8 @@
     <main class="flex-1 flex min-w-0 min-h-0 flex-col overflow-hidden bg-layout transition-theme">
       <!-- 顶部导航 -->
       <header class="bg-container shadow-header h-16 shrink-0 flex items-center justify-between px-4 z-10 transition-theme">
-        <div class="min-w-0 flex items-center">
-          <div class="header-sidebar-toggle flex shrink-0 items-center pr-3">
+        <div class="min-w-0 flex items-center gap-3">
+          <div class="flex shrink-0 items-center">
             <n-button quaternary circle aria-label="折叠菜单" @click="toggleSidebarCollapsed">
               <template #icon>
                 <n-icon class="sidebar-toggle-icon" :class="{ 'sidebar-toggle-icon--collapsed': sidebarCollapsed }">
@@ -70,14 +70,27 @@
             </n-button>
           </div>
 
-          <n-breadcrumb class="min-w-0 pl-3">
+          <n-breadcrumb class="min-w-0">
             <n-breadcrumb-item
               v-for="item in breadcrumbs"
               :key="item.path || item.title"
               class="cursor-pointer"
               @click="handleBreadcrumbClick(item.path)"
             >
-              {{ item.title }}
+              <span class="breadcrumb-label">
+                <AppIcon
+                  v-if="item.icon || item.iconUrl"
+                  :icon="item.icon"
+                  :icon-url="item.iconUrl"
+                  :alt="item.title"
+                  :size="16"
+                  use-mask
+                />
+                <n-icon v-else :size="16">
+                  <menu-outline />
+                </n-icon>
+                <span>{{ item.title }}</span>
+              </span>
             </n-breadcrumb-item>
           </n-breadcrumb>
         </div>
@@ -141,6 +154,8 @@ import { localStg } from '@/utils/storage'
 interface BreadcrumbItem {
   title: string
   path?: string
+  icon?: string | null
+  iconUrl?: string | null
 }
 
 const route = useRoute()
@@ -176,7 +191,11 @@ const userRoleNames = computed(() => (
 const activeMenu = computed(() => route.path)
 const breadcrumbs = computed<BreadcrumbItem[]>(() => {
   if (route.path === '/dashboard') {
-    return [{ title: '首页', path: '/dashboard' }]
+    return [{
+      title: '首页',
+      path: '/dashboard',
+      icon: 'material-symbols:home-outline',
+    }]
   }
 
   const menuTrail = authStore.findMenuTrail(route.path)
@@ -184,6 +203,8 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
     return menuTrail.map(menu => ({
       title: menu.name,
       path: menu.path,
+      icon: menu.icon,
+      iconUrl: menu.iconUrl,
     }))
   }
 
@@ -192,6 +213,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
     .map(record => ({
       title: String(record.meta.title),
       path: record.path,
+      icon: 'material-symbols:menu',
     }))
 
   return matched
@@ -342,8 +364,20 @@ watch(
   white-space: nowrap;
 }
 
-.header-sidebar-toggle {
-  border-right: 1px solid rgba(148, 163, 184, 0.32);
+.layout-sidebar {
+  box-shadow: 8px 0 18px rgba(15, 23, 42, 0.06);
+  z-index: 11;
+}
+
+:global(.dark) .layout-sidebar {
+  box-shadow: 8px 0 20px rgba(2, 6, 23, 0.28);
+}
+
+.breadcrumb-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
 }
 
 .sidebar-toggle-icon {
