@@ -109,7 +109,7 @@ import PageTableCard from '@/components/common/PageTableCard.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
-import { exportCsv } from '@/utils/export'
+import { exportExcel } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -244,7 +244,7 @@ const handleSelectedRowKeysUpdate = (keys: DataTableRowKey[]) => {
 }
 
 const handleExport = () => {
-  exportCsv('角色管理', roles.value, [
+  exportExcel('角色管理', roles.value, [
     { title: 'ID', value: 'id' },
     { title: '角色名称', value: 'name' },
     { title: '角色编码', value: 'code' },

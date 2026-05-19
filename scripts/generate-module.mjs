@@ -681,7 +681,7 @@ import type { Create${config.className}Dto, ${config.className} } from '@/types/
 import { useAuthStore } from '@/store'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
-import { exportCsv } from '@/utils/export'
+import { exportExcel } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -826,7 +826,7 @@ function handleSelectedRowKeysUpdate(keys: DataTableRowKey[]) {
 }
 
 function handleExport() {
-  exportCsv('${config.title}', list.value, [
+  exportExcel('${config.title}', list.value, [
     { title: 'ID', value: 'id' },
     { title: '名称', value: 'name' },
     { title: '状态', value: row => (row.isEnabled ? '启用' : '停用') },

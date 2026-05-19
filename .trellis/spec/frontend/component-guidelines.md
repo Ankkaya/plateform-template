@@ -62,7 +62,7 @@ CRUD pages commonly use:
 - `QueryForm` for search/filter forms
 - `PageToolbar` for actions below the search area, such as create/export/import
 - `PageTableCard` as the list shell; place `n-data-table` and optional pagination inside it
-- `PageTableCard` for shared table actions such as export, batch delete, and column settings; the page still owns row selection and handlers
+- `PageTableCard` for shared table actions such as Excel export, batch delete, and column settings; the page still owns row selection and handlers
 - `PagePagination` for table footer pagination
 - `n-data-table` with `autoFitTableColumns`, `createActionColumn`, and `getTableScrollX`
 - `n-modal` for compact forms or `SmartFormContainer` for larger forms
@@ -104,7 +104,7 @@ For newly added CRUD pages, prefer this structure by default:
 </PageTableCard>
 ```
 
-Keep business request logic, table columns, selected row keys, and page-specific actions in the page file; `PageTableCard` only standardizes the table shell, shared action placement, permission-gated action visibility, and column settings.
+Keep business request logic, table columns, selected row keys, and page-specific actions in the page file; `PageTableCard` only standardizes the table shell, shared action placement, permission-gated action visibility, and column settings. Table exports should use `exportExcel(...)` from `utils/export.ts` and produce `.xlsx` files.
 
 Example action column pattern:
 

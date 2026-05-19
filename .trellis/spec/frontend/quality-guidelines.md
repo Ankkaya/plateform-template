@@ -176,6 +176,7 @@ When adding a test framework later, start with:
 - Top-level action buttons should render inside `PageToolbar`, below `PageSearchCard` rather than inline in the search form.
 - The list shell should use `PageTableCard`; when column visibility is needed, pass `columnSettingOptions` and `columnSettingValue`.
 - Footer pagination should use `PagePagination`; page files still own `page`, `pageSize`, total count, and request timing.
+- Table export handlers should call `exportExcel(...)` from `utils/export.ts` and download `.xlsx` workbooks.
 - `PageTableCard` standardizes where `TableColumnSettings` appears; page files still own the actual `n-data-table`, pagination, data loading, and row actions.
 
 ### 4. Validation & Error Matrix

@@ -205,7 +205,7 @@ import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
 import { resolveFileUrl } from '@/utils/file-url'
-import { exportCsv } from '@/utils/export'
+import { exportExcel } from '@/utils/export'
 
 const ALLOWED_AVATAR_TYPES = new Set([
   'image/jpeg',
@@ -438,7 +438,7 @@ const formatDate = (date: string) => {
 }
 
 const handleExport = () => {
-  exportCsv('用户管理', users.value, [
+  exportExcel('用户管理', users.value, [
     { title: 'ID', value: 'id' },
     { title: '用户名', value: 'username' },
     { title: '邮箱', value: row => row.email || '' },

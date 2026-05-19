@@ -148,7 +148,7 @@ import type { Menu, CreateMenuDto } from '@/types'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
 import { autoFitTableColumns, createActionColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
-import { exportCsv } from '@/utils/export'
+import { exportExcel } from '@/utils/export'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -345,7 +345,7 @@ const handleSelectedRowKeysUpdate = (keys: DataTableRowKey[]) => {
 }
 
 const handleExport = () => {
-  exportCsv('菜单管理', flattenMenus(menus.value), [
+  exportExcel('菜单管理', flattenMenus(menus.value), [
     { title: 'ID', value: 'id' },
     { title: '菜单名称', value: 'name' },
     { title: '路由路径', value: row => row.path || '' },
