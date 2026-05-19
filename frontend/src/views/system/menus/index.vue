@@ -31,7 +31,7 @@
     <SmartFormContainer
       v-model:show="dialogVisible"
       :title="isEdit ? '编辑菜单' : '新增菜单'"
-      :form-item-count="10"
+      :form-item-count="9"
       modal-width="600px"
       :drawer-width="760"
     >
@@ -106,9 +106,6 @@
         <n-form-item label="是否隐藏" path="hidden">
           <n-switch v-model:value="form.hidden" />
         </n-form-item>
-        <n-form-item label="总是显示" path="alwaysShow" v-if="form.type === 'menu'">
-          <n-switch v-model:value="form.alwaysShow" />
-        </n-form-item>
       </n-form>
       <template #footer>
         <n-space justify="end">
@@ -175,7 +172,6 @@ const form = reactive<CreateMenuDto>({
   parentId: undefined,
   order: 0,
   hidden: false,
-  alwaysShow: false,
   type: 'menu'
 })
 
@@ -390,7 +386,6 @@ const handleCreate = (row: Menu | null) => {
   form.parentId = row?.id
   form.order = 0
   form.hidden = false
-  form.alwaysShow = false
   form.type = 'menu'
   currentIconUrl.value = ''
   iconPickerVisible.value = false
@@ -409,7 +404,6 @@ const handleEdit = (menu: Menu) => {
   form.parentId = menu.parentId
   form.order = menu.order
   form.hidden = menu.hidden
-  form.alwaysShow = menu.alwaysShow
   form.type = menu.type as 'menu' | 'button' | 'iframe'
   currentIconUrl.value = menu.iconUrl || ''
   iconPickerVisible.value = false

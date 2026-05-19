@@ -56,7 +56,6 @@ model Menu {
   parentId    Int?
   order       Int       @default(0)
   hidden      Boolean   @default(false)
-  alwaysShow  Boolean   @default(false)
   type        String    @default("menu") // menu | button | iframe
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

@@ -34,9 +34,6 @@ export class MenuVo {
   @ApiProperty({ description: '是否隐藏' })
   hidden: boolean;
 
-  @ApiProperty({ description: '是否总是显示' })
-  alwaysShow: boolean;
-
   @ApiProperty({ description: '类型' })
   type: string;
 
@@ -56,7 +53,6 @@ export class MenuVo {
       parentId: entity.parentId,
       order: entity.order,
       hidden: entity.hidden,
-      alwaysShow: entity.alwaysShow,
       type: entity.type,
     };
 

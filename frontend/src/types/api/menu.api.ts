@@ -16,7 +16,6 @@ export interface CreateMenuParams {
   parentId?: number;
   order?: number;
   hidden?: boolean;
-  alwaysShow?: boolean;
   type?: 'menu' | 'button' | 'iframe';
 }
 

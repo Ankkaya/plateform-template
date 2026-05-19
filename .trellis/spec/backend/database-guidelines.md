@@ -99,6 +99,7 @@ When adding a nullable field that existing environments need, create a migration
 ### 3. Contracts
 - Page menu: `type = "menu"`, `path` points to a frontend route, `permission` is the page view permission.
 - Button permission: `type = "button"`, `hidden = true`, `parentId` points to the page menu, `permission` is required.
+- Menu visibility is controlled by `hidden`; do not add unused display flags such as `alwaysShow`.
 - Admin role code `admin` bypasses per-permission checks, but seed must still assign all menus to admin.
 - Batch delete endpoints use `DELETE <resource>/batch`, require `*:batch-delete`, accept `{ ids: number[] }`, validate all active records exist, and soft-delete with `deletedAt`.
 

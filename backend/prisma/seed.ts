@@ -139,13 +139,11 @@ async function main() {
         component: null,
         redirect: null,
         hidden: true,
-        alwaysShow: false,
         type: 'button',
       },
       create: {
         ...item,
         hidden: true,
-        alwaysShow: false,
         type: 'button',
       },
     });

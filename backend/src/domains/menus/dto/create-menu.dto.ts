@@ -82,14 +82,6 @@ export class CreateMenuDto {
   hidden?: boolean;
 
   @ApiPropertyOptional({
-    example: false,
-    description: '是否总是显示，当有子菜单时是否总是展开显示',
-  })
-  @IsBoolean()
-  @IsOptional()
-  alwaysShow?: boolean;
-
-  @ApiPropertyOptional({
     example: 'menu',
     enum: ['menu', 'button', 'iframe'],
     description: '菜单类型：menu-菜单、button-按钮、iframe-外链',

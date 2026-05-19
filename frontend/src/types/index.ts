@@ -147,7 +147,6 @@ export interface Menu {
   parentId?: number
   order: number
   hidden: boolean
-  alwaysShow: boolean
   type: 'menu' | 'button' | 'iframe'
   createdAt: string
   updatedAt: string
@@ -166,7 +165,6 @@ export interface CreateMenuDto {
   parentId?: number
   order?: number
   hidden?: boolean
-  alwaysShow?: boolean
   type?: 'menu' | 'button' | 'iframe'
 }
 
