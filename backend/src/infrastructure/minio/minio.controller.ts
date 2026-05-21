@@ -78,13 +78,13 @@ export class MinioController {
   ): Promise<{ filename: string; objectKey: string; url: string; etag: string }> {
     this.validateUploadFile(file);
 
-    const result = await this.minioService.uploadFile(file, path);
+    const result = await this.minioService.uploadFile(file, this.withTenantPath(path));
 
     // 写入上传记录
     const module = this.inferModuleFromPath(path);
     const user = req?.user;
     await this.prisma.uploadRecord.create({
-      data: {
+      data: this.prisma.withTenantData({
         userId: user?.userId,
         originalName: file.originalname,
         storedName: result.objectKey,
@@ -93,7 +93,7 @@ export class MinioController {
         mimeType: file.mimetype,
         size: file.size,
         module,
-      },
+      }),
     });
 
     return {
@@ -142,13 +142,13 @@ export class MinioController {
 
     files.forEach(file => this.validateUploadFile(file));
 
-    const results = await this.minioService.uploadFiles(files, path);
+    const results = await this.minioService.uploadFiles(files, this.withTenantPath(path));
 
     // 批量写入上传记录
     const module = this.inferModuleFromPath(path);
     const user = req?.user;
     await this.prisma.uploadRecord.createMany({
-      data: results.map((result, index) => ({
+      data: this.prisma.withTenantCreateManyData(results.map((result, index) => ({
         userId: user?.userId,
         originalName: files[index].originalname,
         storedName: result.objectKey,
@@ -157,7 +157,7 @@ export class MinioController {
         mimeType: files[index].mimetype,
         size: files[index].size,
         module,
-      })),
+      }))),
       skipDuplicates: true,
     });
 
@@ -180,7 +180,7 @@ export class MinioController {
     @Query('expiry') expiry?: string,
   ): Promise<{ url: string }> {
     const url = await this.minioService.getFileUrl(
-      filename,
+      this.normalizeTenantObjectKey(filename),
       expiry ? parseInt(expiry, 10) : undefined,
     );
     return { url };
@@ -214,7 +214,7 @@ export class MinioController {
   async deleteFile(
     @Body('filename') filename: string,
   ): Promise<{ success: boolean }> {
-    await this.minioService.deleteFile(filename);
+    await this.minioService.deleteFile(this.normalizeTenantObjectKey(filename));
     return { success: true };
   }
 
@@ -227,7 +227,7 @@ export class MinioController {
   async deleteFiles(
     @Body('filenames', new ParseArrayPipe({ items: String })) filenames: string[],
   ): Promise<{ success: boolean }> {
-    await this.minioService.deleteFiles(filenames);
+    await this.minioService.deleteFiles(filenames.map(filename => this.normalizeTenantObjectKey(filename)));
     return { success: true };
   }
 
@@ -242,7 +242,7 @@ export class MinioController {
     @Query('recursive') recursive?: string,
   ): Promise<Array<{ name?: string; size: number; lastModified?: Date; etag?: string; prefix?: string }>> {
     const files = await this.minioService.listFiles(
-      prefix,
+      this.withTenantPath(prefix),
       recursive === 'true',
     );
     return files.map(file => ({
@@ -263,7 +263,7 @@ export class MinioController {
   async getFileStat(
     @Query('filename') filename: string,
   ): Promise<{ size: number; etag: string; lastModified: Date; contentType: string | undefined }> {
-    const stat = await this.minioService.getFileStat(filename);
+    const stat = await this.minioService.getFileStat(this.normalizeTenantObjectKey(filename));
     return {
       size: stat.size,
       etag: stat.etag,
@@ -283,7 +283,7 @@ export class MinioController {
     @Query('expiry') expiry?: string,
   ): Promise<{ url: string }> {
     const url = await this.minioService.getPresignedUploadUrl(
-      filename,
+      this.normalizeTenantObjectKey(filename),
       expiry ? parseInt(expiry, 10) : undefined,
     );
     return { url };
@@ -298,8 +298,42 @@ export class MinioController {
   async fileExists(
     @Query('filename') filename: string,
   ): Promise<{ exists: boolean }> {
-    const exists = await this.minioService.fileExists(filename);
+    const exists = await this.minioService.fileExists(this.normalizeTenantObjectKey(filename));
     return { exists };
+  }
+
+  private withTenantPath(path?: string): string {
+    const prefix = this.getTenantObjectPrefix();
+    const normalizedPath = path?.replace(/^\/+|\/+$/g, '') || '';
+    if (!normalizedPath) {
+      return prefix.replace(/\/$/, '');
+    }
+    if (normalizedPath.startsWith(prefix)) {
+      return normalizedPath;
+    }
+    if (/^tenants\/\d+\//.test(normalizedPath)) {
+      throw new BadRequestException('不能访问其他租户的文件路径');
+    }
+    return `${prefix}${normalizedPath}`;
+  }
+
+  private normalizeTenantObjectKey(filename: string): string {
+    const prefix = this.getTenantObjectPrefix();
+    const objectKey = filename?.replace(/^\/+/, '');
+    if (!objectKey) {
+      throw new BadRequestException('文件名不能为空');
+    }
+    if (objectKey.startsWith(prefix)) {
+      return objectKey;
+    }
+    if (/^tenants\/\d+\//.test(objectKey)) {
+      throw new BadRequestException('不能访问其他租户的文件');
+    }
+    return `${prefix}${objectKey}`;
+  }
+
+  private getTenantObjectPrefix(): string {
+    return `tenants/${this.prisma.requireTenantId()}/`;
   }
 
   private inferModuleFromPath(path?: string): string {

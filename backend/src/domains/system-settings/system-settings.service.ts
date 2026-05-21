@@ -41,6 +41,7 @@ export class SystemSettingsService {
 
   async findAll() {
     const list = await this.prisma.systemSetting.findMany({
+      where: this.prisma.withTenantWhere(),
       orderBy: [{ category: 'asc' }, { id: 'asc' }],
     });
     return SystemSettingVo.fromEntities(list);
@@ -48,19 +49,22 @@ export class SystemSettingsService {
 
   async findByCategory(category: string) {
     const list = await this.prisma.systemSetting.findMany({
-      where: { category },
+      where: this.prisma.withTenantWhere({ category }),
       orderBy: { id: 'asc' },
     });
     return SystemSettingVo.fromEntities(list);
   }
 
   async getRawByKey(key: string) {
-    return this.prisma.systemSetting.findUnique({ where: { key } });
+    return this.prisma.systemSetting.findFirst({
+      where: this.prisma.withTenantWhere({ key }),
+    });
   }
 
   async upsert(dto: UpsertSystemSettingDto) {
+    const tenantId = this.prisma.requireTenantId();
     const saved = await this.prisma.systemSetting.upsert({
-      where: { key: dto.key },
+      where: { tenantId_key: { tenantId, key: dto.key } },
       update: {
         category: dto.category,
         name: dto.name,
@@ -68,6 +72,7 @@ export class SystemSettingsService {
         description: dto.description?.trim() || null,
       },
       create: {
+        tenantId,
         key: dto.key,
         category: dto.category,
         name: dto.name,

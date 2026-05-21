@@ -11,10 +11,10 @@ export class RolesService {
   async create(createRoleDto: CreateRoleDto) {
     // 检查角色编码是否存在（排除已删除的）
     const existingRole = await this.prisma.role.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         code: createRoleDto.code,
         deletedAt: null,
-      },
+      }),
     });
 
     if (existingRole) {
@@ -22,9 +22,12 @@ export class RolesService {
     }
 
     const { menuIds, ...roleData } = createRoleDto;
+    if (menuIds?.length) {
+      await this.ensureTenantMenus(menuIds);
+    }
 
     const role = await this.prisma.role.create({
-      data: roleData,
+      data: this.prisma.withTenantData(roleData),
       include: {
         menus: true,
       },
@@ -33,14 +36,16 @@ export class RolesService {
     // 如果传入了菜单ID，则关联菜单
     if (menuIds && menuIds.length > 0) {
       await this.prisma.role.update({
-        where: { id: role.id },
+        where: this.prisma.withTenantWhere({ id: role.id }),
         data: {
           menus: {
             set: menuIds.map((id) => ({ id })),
           },
         },
         include: {
-          menus: true,
+          menus: {
+            where: this.prisma.withTenantWhere({ deletedAt: null }),
+          },
         },
       });
     }
@@ -49,11 +54,15 @@ export class RolesService {
   }
 
   async findAll() {
+    const tenantId = this.prisma.requireTenantId();
     const roles = await this.prisma.role.findMany({
-      where: { deletedAt: null },
+      where: this.prisma.withTenantWhere({ deletedAt: null }),
       include: {
-        menus: true,
+        menus: {
+          where: { tenantId, deletedAt: null },
+        },
         users: {
+          where: { tenantId, deletedAt: null },
           select: { id: true, name: true, email: true },
         },
       },
@@ -64,11 +73,15 @@ export class RolesService {
   }
 
   async findOne(id: number) {
-    const role = await this.prisma.role.findUnique({
-      where: { id, deletedAt: null },
+    const tenantId = this.prisma.requireTenantId();
+    const role = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
       include: {
-        menus: true,
+        menus: {
+          where: { tenantId, deletedAt: null },
+        },
         users: {
+          where: { tenantId, deletedAt: null },
           select: { id: true, name: true, email: true },
         },
       },
@@ -82,8 +95,8 @@ export class RolesService {
   }
 
   async update(id: number, updateRoleDto: UpdateRoleDto) {
-    const existingRole = await this.prisma.role.findUnique({
-      where: { id, deletedAt: null },
+    const existingRole = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!existingRole) {
@@ -93,10 +106,11 @@ export class RolesService {
     // 如果更新code，检查是否重复（排除已删除的）
     if (updateRoleDto.code && updateRoleDto.code !== existingRole.code) {
       const duplicateRole = await this.prisma.role.findFirst({
-        where: { 
+        where: this.prisma.withTenantWhere({
           code: updateRoleDto.code,
           deletedAt: null,
-        },
+          NOT: { id },
+        }),
       });
       if (duplicateRole) {
         throw new ConflictException('角色编码已存在');
@@ -104,19 +118,24 @@ export class RolesService {
     }
 
     const { menuIds, ...roleData } = updateRoleDto;
+    if (menuIds?.length) {
+      await this.ensureTenantMenus(menuIds);
+    }
 
     const role = await this.prisma.role.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: roleData,
       include: {
-        menus: true,
+        menus: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
+        },
       },
     });
 
     // 如果传入了菜单ID，则更新关联
     if (menuIds) {
       await this.prisma.role.update({
-        where: { id },
+        where: this.prisma.withTenantWhere({ id }),
         data: {
           menus: {
             set: menuIds.map((menuId) => ({ id: menuId })),
@@ -141,7 +160,7 @@ export class RolesService {
 
     // 软删除：更新 deletedAt 字段
     await this.prisma.role.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: { deletedAt: new Date() },
     });
 
@@ -155,7 +174,7 @@ export class RolesService {
     }
 
     const roles = await this.prisma.role.findMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
     });
 
     if (roles.length !== uniqueIds.length) {
@@ -167,7 +186,7 @@ export class RolesService {
     }
 
     const result = await this.prisma.role.updateMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
       data: { deletedAt: new Date() },
     });
 
@@ -176,9 +195,13 @@ export class RolesService {
 
   // 根据角色编码查找
   async findByCode(code: string) {
-    const role = await this.prisma.role.findUnique({
-      where: { code, deletedAt: null },
-      include: { menus: true },
+    const role = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ code, deletedAt: null }),
+      include: {
+        menus: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
+        },
+      },
     });
 
     return role ? RoleWithMenusVo.fromEntity(role) : null;
@@ -186,13 +209,15 @@ export class RolesService {
 
   // 根据用户ID获取角色
   async findRolesByUserId(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const user = await this.prisma.user.findFirst({
+      where: this.prisma.withTenantWhere({ id: userId, deletedAt: null }),
       include: {
         roles: {
-          where: { deletedAt: null },
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
           include: {
-            menus: true,
+            menus: {
+              where: this.prisma.withTenantWhere({ deletedAt: null }),
+            },
           },
         },
       },
@@ -204,12 +229,15 @@ export class RolesService {
 
   // 获取角色的菜单
   async getRoleMenus(roleId: number, format: string = 'tree') {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId, deletedAt: null },
+    const role = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ id: roleId, deletedAt: null }),
       include: {
         menus: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
           include: {
-            children: true,
+            children: {
+              where: this.prisma.withTenantWhere({ deletedAt: null }),
+            },
           },
           orderBy: { order: 'asc' },
         },
@@ -236,23 +264,27 @@ export class RolesService {
 
   // 为角色分配菜单
   async assignMenus(roleId: number, menuIds: number[]) {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId, deletedAt: null },
+    const role = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ id: roleId, deletedAt: null }),
     });
 
     if (!role) {
       throw new NotFoundException('角色不存在');
     }
 
+    await this.ensureTenantMenus(menuIds);
+
     const updatedRole = await this.prisma.role.update({
-      where: { id: roleId },
+      where: this.prisma.withTenantWhere({ id: roleId }),
       data: {
         menus: {
           set: menuIds.map((id) => ({ id })),
         },
       },
       include: {
-        menus: true,
+        menus: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
+        },
       },
     });
 
@@ -295,5 +327,23 @@ export class RolesService {
     roots.forEach(cleanMenu);
 
     return roots;
+  }
+
+  private async ensureTenantMenus(menuIds: number[]) {
+    const uniqueIds = Array.from(new Set(menuIds));
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const count = await this.prisma.menu.count({
+      where: this.prisma.withTenantWhere({
+        id: { in: uniqueIds },
+        deletedAt: null,
+      }),
+    });
+
+    if (count !== uniqueIds.length) {
+      throw new NotFoundException('部分菜单不存在或已删除');
+    }
   }
 }

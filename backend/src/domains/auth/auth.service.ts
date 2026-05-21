@@ -10,6 +10,11 @@ import { RedisService } from '@/infrastructure/redis/redis.service';
 import { LoginLogType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+type AuthTokenPayload = {
+  sub: number;
+  tenantId: number;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -46,7 +51,7 @@ export class AuthService {
       const hint = failCount > 0 ? `（已失败 ${failCount} 次）` : '';
       // 记录登录失败日志
       await this.prisma.loginLog.create({
-        data: {
+        data: this.prisma.withTenantData({
           userId: user?.id,
           username,
           type: LoginLogType.LOGIN,
@@ -54,7 +59,7 @@ export class AuthService {
           userAgent: userAgent || '',
           success: false,
           message: `用户名或密码错误${hint}`,
-        },
+        }),
       });
       throw new UnauthorizedException(`用户名或密码错误${hint}`);
     }
@@ -66,26 +71,32 @@ export class AuthService {
 
     // 记录登录成功日志
     await this.prisma.loginLog.create({
-      data: {
+      data: this.prisma.withTenantData({
         userId: user.id,
         username: user.username,
         type: LoginLogType.LOGIN,
         ip,
         userAgent: userAgent || '',
         success: true,
-      },
+      }),
     });
 
     return { user: userWithRoles, ...(await this.generateAuthTokens(user.id)) };
   }
 
   generateToken(userId: number): string {
-    const payload = { sub: userId };
+    const payload: AuthTokenPayload = {
+      sub: userId,
+      tenantId: this.prisma.requireTenantId(),
+    };
     return this.jwtService.sign(payload);
   }
 
   generateRefreshToken(userId: number): string {
-    const payload = { sub: userId };
+    const payload: AuthTokenPayload = {
+      sub: userId,
+      tenantId: this.prisma.requireTenantId(),
+    };
     return this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
       expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '30d') as any,
@@ -93,18 +104,21 @@ export class AuthService {
   }
 
   async generateAuthTokens(userId: number) {
+    const tenantId = this.prisma.requireTenantId();
     const token = this.generateToken(userId);
     const refreshToken = this.generateRefreshToken(userId);
-    await this.cacheTokenPair(userId, token, refreshToken);
+    await this.cacheTokenPair(tenantId, userId, token, refreshToken);
     return { token, refreshToken };
   }
 
-  async verifyRefreshToken(refreshToken: string): Promise<{ sub: number }> {
+  async verifyRefreshToken(refreshToken: string): Promise<AuthTokenPayload> {
     try {
-      const payload = await this.jwtService.verifyAsync<{ sub: number }>(refreshToken, {
+      const payload = await this.jwtService.verifyAsync<AuthTokenPayload>(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'your-secret-key',
       });
+      this.assertCurrentTenant(payload);
       const isValid = await this.redis.validateToken(
+        payload.tenantId,
         payload.sub,
         refreshToken,
         'refresh',
@@ -121,9 +135,11 @@ export class AuthService {
 
   async verifyAccessToken(token: string): Promise<{ sub: number }> {
     try {
-      return await this.jwtService.verifyAsync(token, {
+      const payload = await this.jwtService.verifyAsync<AuthTokenPayload>(token, {
         secret: process.env.JWT_SECRET || 'your-secret-key',
       });
+      this.assertCurrentTenant(payload);
+      return payload;
     }
     catch {
       throw new UnauthorizedException('访问令牌无效或已过期');
@@ -131,19 +147,19 @@ export class AuthService {
   }
 
   async refresh(refreshToken: string, ip = 'unknown', userAgent?: string) {
-    let payload: { sub: number };
+    let payload: AuthTokenPayload;
 
     try {
       payload = await this.verifyRefreshToken(refreshToken);
     } catch {
       await this.prisma.loginLog.create({
-        data: {
+        data: this.prisma.withTenantData({
           type: LoginLogType.REFRESH,
           ip,
           userAgent: userAgent || '',
           success: false,
           message: '刷新令牌无效或已过期',
-        },
+        }),
       });
       throw new UnauthorizedException('刷新令牌无效或已过期');
     }
@@ -153,45 +169,46 @@ export class AuthService {
       user = await this.usersService.findById(payload.sub);
     } catch {
       await this.prisma.loginLog.create({
-        data: {
+        data: this.prisma.withTenantData({
           userId: payload.sub,
           type: LoginLogType.REFRESH,
           ip,
           userAgent: userAgent || '',
           success: false,
           message: '用户不存在或已停用',
-        },
+        }),
       });
       throw new UnauthorizedException('刷新令牌无效或已过期');
     }
 
     await this.prisma.loginLog.create({
-      data: {
+      data: this.prisma.withTenantData({
         userId: user.id,
         username: user.username,
         type: LoginLogType.REFRESH,
         ip,
         userAgent: userAgent || '',
         success: true,
-      },
+      }),
     });
 
     return { user, ...(await this.generateAuthTokens(user.id)) };
   }
 
   async logout(userId: number): Promise<{ success: true }> {
-    await this.redis.deleteUserTokens(userId);
+    await this.redis.deleteUserTokens(this.prisma.requireTenantId(), userId);
     return { success: true };
   }
 
   private async cacheTokenPair(
+    tenantId: number,
     userId: number,
     accessToken: string,
     refreshToken: string,
   ): Promise<void> {
     await Promise.all([
-      this.redis.setToken(userId, accessToken, this.getTokenTtlSeconds(accessToken), 'access'),
-      this.redis.setToken(userId, refreshToken, this.getTokenTtlSeconds(refreshToken), 'refresh'),
+      this.redis.setToken(tenantId, userId, accessToken, this.getTokenTtlSeconds(accessToken), 'access'),
+      this.redis.setToken(tenantId, userId, refreshToken, this.getTokenTtlSeconds(refreshToken), 'refresh'),
     ]);
   }
 
@@ -201,5 +218,11 @@ export class AuthService {
       throw new InternalServerErrorException('令牌缺少过期时间');
     }
     return Math.max(1, payload.exp - Math.floor(Date.now() / 1000));
+  }
+
+  private assertCurrentTenant(payload: AuthTokenPayload): void {
+    if (!payload.tenantId || payload.tenantId !== this.prisma.requireTenantId()) {
+      throw new UnauthorizedException('访问令牌租户无效');
+    }
   }
 }

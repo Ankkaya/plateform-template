@@ -3,6 +3,7 @@ interface ImportMetaEnv {
   readonly VITE_API_PROXY_TARGET?: string
   readonly VITE_API_PROXY_STRIP_PREFIX?: string
   readonly VITE_FILE_BASE_URL?: string
+  readonly VITE_TENANT_ID?: string
 }
 
 interface ImportMeta {

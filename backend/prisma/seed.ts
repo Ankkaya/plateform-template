@@ -15,11 +15,29 @@ const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 async function main() {
   console.log('🌱 开始初始化数据...');
 
+  const defaultTenant = await prisma.tenant.upsert({
+    where: { code: 'default' },
+    update: {
+      name: '默认租户',
+      isEnabled: true,
+      deletedAt: null,
+    },
+    create: {
+      id: 1,
+      name: '默认租户',
+      code: 'default',
+      isEnabled: true,
+    },
+  });
+
+  console.log('✅ 默认租户创建完成:', defaultTenant.name);
+
   // 1. 创建角色
   const adminRole = await prisma.role.upsert({
-    where: { code: 'admin' },
+    where: { tenantId_code: { tenantId: defaultTenant.id, code: 'admin' } },
     update: {},
     create: {
+      tenantId: defaultTenant.id,
       name: '超级管理员',
       code: 'admin',
       description: '拥有所有权限',
@@ -27,9 +45,10 @@ async function main() {
   });
 
   const userRole = await prisma.role.upsert({
-    where: { code: 'user' },
+    where: { tenantId_code: { tenantId: defaultTenant.id, code: 'user' } },
     update: {},
     create: {
+      tenantId: defaultTenant.id,
       name: '普通用户',
       code: 'user',
       description: '基础权限',
@@ -41,9 +60,10 @@ async function main() {
   // 2. 创建管理员用户
   const hashedPassword = await bcrypt.hash('123456', 10);
   const adminUser = await prisma.user.upsert({
-    where: { username: 'admin' },
+    where: { tenantId_username: { tenantId: defaultTenant.id, username: 'admin' } },
     update: {},
     create: {
+      tenantId: defaultTenant.id,
       username: 'admin',
       password: hashedPassword,
       name: '系统管理员',
@@ -60,6 +80,7 @@ async function main() {
   const systemMenu = await prisma.menu.upsert({
     where: { id: 1 },
     update: {
+      tenantId: defaultTenant.id,
       name: '系统管理',
       path: '/system',
       icon: 'material-symbols:settings-outline',
@@ -69,6 +90,7 @@ async function main() {
     },
     create: {
       id: 1,
+      tenantId: defaultTenant.id,
       name: '系统管理',
       path: '/system',
       icon: 'material-symbols:settings-outline',
@@ -93,10 +115,12 @@ async function main() {
       where: { id: item.id },
       update: {
         ...item,
+        tenantId: defaultTenant.id,
         type: 'menu',
       },
       create: {
         ...item,
+        tenantId: defaultTenant.id,
         type: 'menu',
       },
     });
@@ -134,6 +158,7 @@ async function main() {
       where: { id: item.id },
       update: {
         ...item,
+        tenantId: defaultTenant.id,
         path: null,
         icon: null,
         component: null,
@@ -143,6 +168,7 @@ async function main() {
       },
       create: {
         ...item,
+        tenantId: defaultTenant.id,
         hidden: true,
         type: 'button',
       },
@@ -152,7 +178,7 @@ async function main() {
   console.log('✅ 基础菜单创建完成: 系统管理 + 7 个子菜单 + 按钮权限');
 
   const commonStatusType = await prisma.dictionaryType.upsert({
-    where: { code: 'common_status' },
+    where: { tenantId_code: { tenantId: defaultTenant.id, code: 'common_status' } },
     update: {
       name: '通用状态',
       description: '通用启用/停用状态',
@@ -161,6 +187,7 @@ async function main() {
       deletedAt: null,
     },
     create: {
+      tenantId: defaultTenant.id,
       name: '通用状态',
       code: 'common_status',
       description: '通用启用/停用状态',
@@ -170,7 +197,7 @@ async function main() {
   });
 
   const booleanFlagType = await prisma.dictionaryType.upsert({
-    where: { code: 'boolean_flag' },
+    where: { tenantId_code: { tenantId: defaultTenant.id, code: 'boolean_flag' } },
     update: {
       name: '是否标识',
       description: '通用是否选项',
@@ -179,6 +206,7 @@ async function main() {
       deletedAt: null,
     },
     create: {
+      tenantId: defaultTenant.id,
       name: '是否标识',
       code: 'boolean_flag',
       description: '通用是否选项',
@@ -198,7 +226,7 @@ async function main() {
     },
   ) => {
     const existing = await prisma.dictionaryItem.findFirst({
-      where: { typeId, value: item.value },
+      where: { tenantId: defaultTenant.id, typeId, value: item.value },
     });
 
     if (existing) {
@@ -215,6 +243,7 @@ async function main() {
 
     await prisma.dictionaryItem.create({
       data: {
+        tenantId: defaultTenant.id,
         typeId,
         ...item,
         isEnabled: true,
@@ -250,7 +279,9 @@ async function main() {
   console.log('✅ 数据字典初始化完成: 通用状态 + 是否标识');
 
   // 4. 给管理员角色分配所有菜单
-  const allMenus = await prisma.menu.findMany();
+  const allMenus = await prisma.menu.findMany({
+    where: { tenantId: defaultTenant.id },
+  });
   await prisma.role.update({
     where: { id: adminRole.id },
     data: {

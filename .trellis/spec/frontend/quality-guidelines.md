@@ -47,6 +47,55 @@ Run `pnpm build` only when a production build artifact or Vite packaging validat
 
 ---
 
+## Scenario: Tenant Header Request Contract
+
+### 1. Scope / Trigger
+- Trigger: The backend requires a tenant context for shared-database multi-tenant data access.
+- Applies when changing `src/api/request.ts`, auth refresh behavior, tenant selection, or environment configuration.
+
+### 2. Signatures
+- Header: `tenant_id`.
+- Utility: `src/utils/tenant.ts`.
+- Storage key: `tenant_id`.
+- Environment key: `VITE_TENANT_ID`.
+- Default tenant value: `1`.
+
+### 3. Contracts
+- The shared Axios instance must attach `tenant_id` to every normal API request.
+- The refresh-token Axios instance must also attach `tenant_id`; otherwise expired access tokens can fail refresh in tenant-scoped auth.
+- `getTenantId()` reads `localStorage.tenant_id` first and falls back to `VITE_TENANT_ID` or `1`.
+- Page code should not hand-write the tenant header; use the shared request client.
+- Tenant selection UI, when added, should call `setTenantId(...)` before issuing tenant-scoped requests.
+
+### 4. Validation & Error Matrix
+- Missing tenant header on a tenant-owned backend call -> backend returns `400`.
+- Malformed tenant ID -> backend returns `400`.
+- Tenant header differs from the JWT tenant claim -> backend returns `401`.
+- Refresh request omits tenant header -> session refresh fails even when the refresh token is otherwise valid.
+
+### 5. Good/Base/Bad Cases
+- Good: `api.get('/users')` sends both `Authorization` and `tenant_id` through the interceptor.
+- Base: a fresh local install uses tenant `1`.
+- Bad: a page calls Axios directly and manually forgets the tenant header.
+
+### 6. Tests Required
+- Run `pnpm exec vue-tsc --noEmit` after changing tenant utilities or request interceptors.
+- If frontend request tests are added later, assert both the normal API instance and refresh instance attach `tenant_id`.
+- Manually verify login and token refresh after changing tenant selection behavior.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+axios.get('/api/users')
+```
+
+#### Correct
+```ts
+api.get('/users')
+```
+
+---
+
 ## Scenario: Menu, Route, Title, and Breadcrumb Consistency
 
 ### 1. Scope / Trigger

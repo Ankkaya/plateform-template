@@ -16,10 +16,10 @@ export class UsersService {
   async create(createUserDto: CreateUserDto) {
     // 检查用户名是否存在（排除已删除的用户）
     const existingUser = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         username: createUserDto.username,
         deletedAt: null 
-      },
+      }),
     });
 
     if (existingUser) {
@@ -29,10 +29,10 @@ export class UsersService {
     // 检查邮箱是否存在（如果提供了邮箱，排除已删除的用户）
     if (createUserDto.email) {
       const existingEmail = await this.prisma.user.findFirst({
-        where: { 
+        where: this.prisma.withTenantWhere({
           email: createUserDto.email,
           deletedAt: null 
-        },
+        }),
       });
       if (existingEmail) {
         throw new ConflictException('邮箱已被使用');
@@ -42,10 +42,10 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(createUserDto.password, 10);
 
     const user = await this.prisma.user.create({
-      data: {
+      data: this.prisma.withTenantData({
         ...createUserDto,
         password: hashedPassword,
-      },
+      }),
     });
 
     return UserVo.fromEntity(user);
@@ -53,32 +53,36 @@ export class UsersService {
 
   async findByUsername(username: string) {
     return this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         username,
         deletedAt: null 
-      },
+      }),
     });
   }
 
   async findByEmail(email: string) {
     return this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         email,
         deletedAt: null 
-      },
+      }),
     });
   }
 
   async findById(id: number) {
+    const tenantId = this.prisma.requireTenantId();
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id,
         deletedAt: null 
-      },
+      }),
       include: {
         roles: {
+          where: { tenantId, deletedAt: null },
           include: {
-            menus: true,
+            menus: {
+              where: { tenantId, deletedAt: null },
+            },
           },
         },
       },
@@ -93,17 +97,18 @@ export class UsersService {
 
   async findAll() {
     const users = await this.prisma.user.findMany({
-      where: { deletedAt: null },
+      where: this.prisma.withTenantWhere({ deletedAt: null }),
     });
     return UserVo.fromEntities(users);
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
+    const tenantId = this.prisma.requireTenantId();
     const existingUser = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id,
         deletedAt: null 
-      },
+      }),
     });
 
     if (!existingUser) {
@@ -113,11 +118,11 @@ export class UsersService {
     // 检查邮箱是否被其他用户使用（排除已删除的用户）
     if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
       const duplicateEmail = await this.prisma.user.findFirst({
-        where: { 
+        where: this.prisma.withTenantWhere({
           email: updateUserDto.email,
           deletedAt: null,
           NOT: { id }
-        },
+        }),
       });
       if (duplicateEmail) {
         throw new ConflictException('邮箱已被使用');
@@ -131,10 +136,12 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data,
       include: {
-        roles: true,
+        roles: {
+          where: { tenantId, deletedAt: null },
+        },
       },
     });
 
@@ -142,11 +149,12 @@ export class UsersService {
   }
 
   async resetPassword(id: number, password: string) {
+    const tenantId = this.prisma.requireTenantId();
     const existingUser = await this.prisma.user.findFirst({
-      where: {
+      where: this.prisma.withTenantWhere({
         id,
         deletedAt: null
-      },
+      }),
       include: {
         roles: true,
       },
@@ -157,12 +165,14 @@ export class UsersService {
     }
 
     const user = await this.prisma.user.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: {
         password: await bcrypt.hash(password, 10),
       },
       include: {
-        roles: true,
+        roles: {
+          where: { tenantId, deletedAt: null },
+        },
       },
     });
 
@@ -171,10 +181,10 @@ export class UsersService {
 
   async remove(id: number) {
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id,
         deletedAt: null 
-      },
+      }),
     });
 
     if (!user) {
@@ -182,11 +192,11 @@ export class UsersService {
     }
 
     // 检查是否是最后一个管理员（可选的业务逻辑）
-    const adminRole = await this.prisma.role.findUnique({
-      where: { code: 'admin' },
+    const adminRole = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ code: 'admin', deletedAt: null }),
       include: { 
         users: {
-          where: { deletedAt: null }
+          where: this.prisma.withTenantWhere({ deletedAt: null })
         } 
       },
     });
@@ -197,32 +207,37 @@ export class UsersService {
 
     // 软删除：更新 deletedAt 字段
     await this.prisma.user.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: { deletedAt: new Date() }
     });
     return { id, message: '用户已删除' };
   }
 
   async removeMany(ids: number[]) {
+    const tenantId = this.prisma.requireTenantId();
     const uniqueIds = Array.from(new Set(ids));
     if (uniqueIds.length === 0) {
       return { count: 0, ids: [] };
     }
 
     const users = await this.prisma.user.findMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
-      include: { roles: true },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
+      include: {
+        roles: {
+          where: { tenantId, deletedAt: null },
+        },
+      },
     });
 
     if (users.length !== uniqueIds.length) {
       throw new NotFoundException('部分用户不存在或已删除');
     }
 
-    const adminRole = await this.prisma.role.findUnique({
-      where: { code: 'admin' },
+    const adminRole = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ code: 'admin', deletedAt: null }),
       include: {
         users: {
-          where: { deletedAt: null },
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
           select: { id: true },
         },
       },
@@ -237,7 +252,7 @@ export class UsersService {
     }
 
     const result = await this.prisma.user.updateMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
       data: { deletedAt: new Date() },
     });
 
@@ -246,15 +261,19 @@ export class UsersService {
 
   // 获取用户完整信息（包括角色）
   async findUserWithRoles(userId: number) {
+    const tenantId = this.prisma.requireTenantId();
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id: userId,
         deletedAt: null 
-      },
+      }),
       include: {
         roles: {
+          where: { tenantId, deletedAt: null },
           include: {
-            menus: true,
+            menus: {
+              where: { tenantId, deletedAt: null },
+            },
           },
         },
       },
@@ -270,25 +289,29 @@ export class UsersService {
   // 为用户分配角色
   async assignRoles(userId: number, roleIds: number[]) {
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id: userId,
         deletedAt: null 
-      },
+      }),
     });
 
     if (!user) {
       throw new NotFoundException('用户不存在');
     }
 
+    await this.ensureTenantRoles(roleIds);
+
     return this.prisma.user.update({
-      where: { id: userId },
+      where: this.prisma.withTenantWhere({ id: userId }),
       data: {
         roles: {
           set: roleIds.map((id) => ({ id })),
         },
       },
       include: {
-        roles: true,
+        roles: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
+        },
       },
     });
   }
@@ -296,12 +319,14 @@ export class UsersService {
   // 获取用户角色
   async getUserRoles(userId: number) {
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id: userId,
         deletedAt: null 
-      },
+      }),
       include: {
-        roles: true,
+        roles: {
+          where: this.prisma.withTenantWhere({ deletedAt: null }),
+        },
       },
     });
 
@@ -314,17 +339,22 @@ export class UsersService {
 
   // 获取用户菜单（聚合所有角色的菜单）
   async getUserMenus(userId: number, format: string = 'tree') {
+    const tenantId = this.prisma.requireTenantId();
     const user = await this.prisma.user.findFirst({
-      where: { 
+      where: this.prisma.withTenantWhere({
         id: userId,
         deletedAt: null 
-      },
+      }),
       include: {
         roles: {
+          where: { tenantId, deletedAt: null },
           include: {
             menus: {
+              where: { tenantId, deletedAt: null },
               include: {
-                children: true,
+                children: {
+                  where: { tenantId, deletedAt: null },
+                },
               },
             },
           },
@@ -411,5 +441,23 @@ export class UsersService {
       iconUrl: await this.iconAssetsService.resolveIconUrl(menu.icon),
       ...(children ? { children } : {}),
     };
+  }
+
+  private async ensureTenantRoles(roleIds: number[]) {
+    const uniqueIds = Array.from(new Set(roleIds));
+    if (uniqueIds.length === 0) {
+      return;
+    }
+
+    const count = await this.prisma.role.count({
+      where: this.prisma.withTenantWhere({
+        id: { in: uniqueIds },
+        deletedAt: null,
+      }),
+    });
+
+    if (count !== uniqueIds.length) {
+      throw new NotFoundException('部分角色不存在或已删除');
+    }
   }
 }

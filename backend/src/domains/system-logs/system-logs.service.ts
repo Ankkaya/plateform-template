@@ -10,7 +10,7 @@ export class SystemLogsService {
 
   async findOperationLogs(query: QueryOperationLogDto) {
     const { page = 1, pageSize = 20, userId, module, method, path, statusCode, action, startTime, endTime } = query;
-    const where: any = {};
+    const where: any = this.prisma.withTenantWhere();
     if (userId) where.userId = userId;
     if (module) where.module = module;
     if (method) where.method = method;
@@ -38,7 +38,7 @@ export class SystemLogsService {
 
   async findLoginLogs(query: QueryLoginLogDto) {
     const { page = 1, pageSize = 20, userId, type, startTime, endTime, success } = query;
-    const where: any = {};
+    const where: any = this.prisma.withTenantWhere();
     if (userId) where.userId = userId;
     if (type) where.type = type as LoginLogType;
     if (success !== undefined) where.success = success;
@@ -76,11 +76,11 @@ export class SystemLogsService {
     duration?: number;
   }) {
     return this.prisma.operationLog.create({
-      data: {
+      data: this.prisma.withTenantData({
         ...data,
         oldValue: data.oldValue ?? undefined,
         newValue: data.newValue ?? undefined,
-      },
+      }),
     });
   }
 
@@ -93,6 +93,6 @@ export class SystemLogsService {
     success: boolean;
     message?: string;
   }) {
-    return this.prisma.loginLog.create({ data });
+    return this.prisma.loginLog.create({ data: this.prisma.withTenantData(data) });
   }
 }

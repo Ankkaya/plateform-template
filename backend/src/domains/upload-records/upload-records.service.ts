@@ -8,7 +8,7 @@ export class UploadRecordsService {
 
   async findAll(query: QueryUploadRecordDto) {
     const { page = 1, pageSize = 20, userId, module, refId, status } = query;
-    const where: any = {};
+    const where: any = this.prisma.withTenantWhere();
     if (userId) where.userId = userId;
     if (module) where.module = module;
     if (refId) where.refId = refId;
@@ -39,6 +39,6 @@ export class UploadRecordsService {
     refId?: string;
     refType?: string;
   }) {
-    return this.prisma.uploadRecord.create({ data });
+    return this.prisma.uploadRecord.create({ data: this.prisma.withTenantData(data) });
   }
 }

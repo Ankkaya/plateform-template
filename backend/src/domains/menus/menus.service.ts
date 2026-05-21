@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { CreateMenuDto } from './dto/create-menu.dto';
 import { UpdateMenuDto } from './dto/update-menu.dto';
@@ -13,22 +13,25 @@ export class MenusService {
   ) {}
 
   async create(createMenuDto: CreateMenuDto) {
+    await this.ensureTenantParent(createMenuDto.parentId);
     const menu = await this.prisma.menu.create({
-      data: createMenuDto,
+      data: this.prisma.withTenantData(createMenuDto),
     });
     return this.toMenuVo(menu);
   }
 
   async findAll() {
+    const tenantId = this.prisma.requireTenantId();
     const menus = await this.prisma.menu.findMany({
-      where: { deletedAt: null },
+      where: this.prisma.withTenantWhere({ deletedAt: null }),
       orderBy: { order: 'asc' },
       include: {
         parent: true,
         children: {
-          where: { deletedAt: null },
+          where: { tenantId, deletedAt: null },
         },
         roles: {
+          where: { tenantId, deletedAt: null },
           select: { id: true, name: true },
         },
       },
@@ -42,7 +45,7 @@ export class MenusService {
   // 获取所有菜单（扁平化）
   async findAllFlat() {
     const menus = await this.prisma.menu.findMany({
-      where: { deletedAt: null },
+      where: this.prisma.withTenantWhere({ deletedAt: null }),
       orderBy: { order: 'asc' },
       include: {
         parent: true,
@@ -52,14 +55,16 @@ export class MenusService {
   }
 
   async findOne(id: number) {
-    const menu = await this.prisma.menu.findUnique({
-      where: { id, deletedAt: null },
+    const tenantId = this.prisma.requireTenantId();
+    const menu = await this.prisma.menu.findFirst({
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
       include: {
         parent: true,
         children: {
-          where: { deletedAt: null },
+          where: { tenantId, deletedAt: null },
         },
         roles: {
+          where: { tenantId, deletedAt: null },
           select: { id: true, name: true },
         },
       },
@@ -73,8 +78,8 @@ export class MenusService {
   }
 
   async update(id: number, updateMenuDto: UpdateMenuDto) {
-    const existingMenu = await this.prisma.menu.findUnique({
-      where: { id, deletedAt: null },
+    const existingMenu = await this.prisma.menu.findFirst({
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!existingMenu) {
@@ -83,16 +88,18 @@ export class MenusService {
 
     // 不能将父级设置为自己
     if (updateMenuDto.parentId === id) {
-      throw new Error('父级菜单不能是自己');
+      throw new BadRequestException('父级菜单不能是自己');
     }
 
+    await this.ensureTenantParent(updateMenuDto.parentId);
+    const tenantId = this.prisma.requireTenantId();
     const updatedMenu = await this.prisma.menu.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: updateMenuDto,
       include: {
         parent: true,
         children: {
-          where: { deletedAt: null },
+          where: { tenantId, deletedAt: null },
         },
       },
     });
@@ -104,16 +111,16 @@ export class MenusService {
 
     // 检查是否有子菜单（未软删除的）
     const childCount = await this.prisma.menu.count({
-      where: { parentId: id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ parentId: id, deletedAt: null }),
     });
 
     if (childCount > 0) {
-      throw new Error('不能删除有子菜单的菜单');
+      throw new BadRequestException('不能删除有子菜单的菜单');
     }
 
     // 软删除：更新 deletedAt 字段
     await this.prisma.menu.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: { deletedAt: new Date() },
     });
 
@@ -127,7 +134,7 @@ export class MenusService {
     }
 
     const menus = await this.prisma.menu.findMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
     });
 
     if (menus.length !== uniqueIds.length) {
@@ -135,19 +142,19 @@ export class MenusService {
     }
 
     const childCount = await this.prisma.menu.count({
-      where: {
+      where: this.prisma.withTenantWhere({
         parentId: { in: uniqueIds },
         deletedAt: null,
         id: { notIn: uniqueIds },
-      },
+      }),
     });
 
     if (childCount > 0) {
-      throw new Error('不能删除存在子菜单的菜单');
+      throw new BadRequestException('不能删除存在子菜单的菜单');
     }
 
     const result = await this.prisma.menu.updateMany({
-      where: { id: { in: uniqueIds }, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
       data: { deletedAt: new Date() },
     });
 
@@ -156,14 +163,15 @@ export class MenusService {
 
   // 根据角色ID获取菜单
   async findMenusByRoleId(roleId: number) {
-    const role = await this.prisma.role.findUnique({
-      where: { id: roleId },
+    const tenantId = this.prisma.requireTenantId();
+    const role = await this.prisma.role.findFirst({
+      where: this.prisma.withTenantWhere({ id: roleId, deletedAt: null }),
       include: {
         menus: {
-          where: { deletedAt: null },
+          where: { tenantId, deletedAt: null },
           include: {
             children: {
-              where: { deletedAt: null },
+              where: { tenantId, deletedAt: null },
             },
           },
         },
@@ -181,16 +189,18 @@ export class MenusService {
 
   // 根据用户ID获取菜单
   async findMenusByUserId(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const tenantId = this.prisma.requireTenantId();
+    const user = await this.prisma.user.findFirst({
+      where: this.prisma.withTenantWhere({ id: userId, deletedAt: null }),
       include: {
         roles: {
+          where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { deletedAt: null },
+              where: { tenantId, deletedAt: null },
               include: {
                 children: {
-                  where: { deletedAt: null },
+                  where: { tenantId, deletedAt: null },
                 },
               },
             },
@@ -270,5 +280,22 @@ export class MenusService {
       iconUrl: await this.iconAssetsService.resolveIconUrl(entity.icon),
       children,
     });
+  }
+
+  private async ensureTenantParent(parentId?: number | null) {
+    if (!parentId) {
+      return;
+    }
+
+    const parent = await this.prisma.menu.findFirst({
+      where: this.prisma.withTenantWhere({
+        id: parentId,
+        deletedAt: null,
+      }),
+    });
+
+    if (!parent) {
+      throw new NotFoundException('父级菜单不存在');
+    }
   }
 }

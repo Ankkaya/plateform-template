@@ -8,6 +8,7 @@ import {
   setAuthTokens,
   shouldRefreshAccessToken,
 } from '@/utils/auth-refresh'
+import { getTenantId } from '@/utils/tenant'
 
 // ==================== 自定义 Axios 实例类型 ====================
 /**
@@ -50,6 +51,14 @@ interface RetriableRequestConfig extends InternalAxiosRequestConfig {
 
 let refreshRequest: Promise<AuthResponse> | null = null
 
+function attachTenantHeader(config: InternalAxiosRequestConfig) {
+  const tenantId = getTenantId()
+  if (tenantId) {
+    config.headers.tenant_id = tenantId
+  }
+  return config
+}
+
 function redirectToLogin() {
   clearAuthTokens()
   if (typeof window !== 'undefined') {
@@ -85,10 +94,21 @@ async function requestFreshTokens() {
 // ==================== 请求拦截器 ====================
 instance.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    attachTenantHeader(config)
     const token = getAccessToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+refreshInstance.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    attachTenantHeader(config)
     return config
   },
   (error) => {

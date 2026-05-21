@@ -27,14 +27,15 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('缺少用户身份');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+    const tenantId = this.prisma.requireTenantId();
+    const user = await this.prisma.user.findFirst({
+      where: this.prisma.withTenantWhere({ id: userId, deletedAt: null }),
       include: {
         roles: {
-          where: { deletedAt: null },
+          where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { deletedAt: null },
+              where: { tenantId, deletedAt: null },
               select: {
                 path: true,
                 permission: true,
@@ -45,7 +46,7 @@ export class PermissionsGuard implements CanActivate {
       },
     });
 
-    if (!user || user.deletedAt) {
+    if (!user) {
       throw new ForbiddenException('用户不存在或已禁用');
     }
 

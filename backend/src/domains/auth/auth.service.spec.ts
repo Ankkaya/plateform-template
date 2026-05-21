@@ -33,9 +33,11 @@ describe('AuthService refresh tokens', () => {
           ? { exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60 }
           : { exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60 };
       }),
-      verifyAsync: jest.fn().mockResolvedValue({ sub: userWithRoles.id }),
+      verifyAsync: jest.fn().mockResolvedValue({ sub: userWithRoles.id, tenantId: 1 }),
     };
     const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantData: jest.fn((data) => ({ ...data, tenantId: 1 })),
       loginLog: {
         create: jest.fn().mockResolvedValue({}),
       },
@@ -79,8 +81,8 @@ describe('AuthService refresh tokens', () => {
       token: 'access-1',
       refreshToken: 'refresh-1',
     });
-    expect(redis.setToken).toHaveBeenNthCalledWith(1, 1, 'access-1', expect.any(Number), 'access');
-    expect(redis.setToken).toHaveBeenNthCalledWith(2, 1, 'refresh-1', expect.any(Number), 'refresh');
+    expect(redis.setToken).toHaveBeenNthCalledWith(1, 1, 1, 'access-1', expect.any(Number), 'access');
+    expect(redis.setToken).toHaveBeenNthCalledWith(2, 1, 1, 'refresh-1', expect.any(Number), 'refresh');
   });
 
   it('returns the full user profile with roles after login', async () => {
@@ -123,7 +125,7 @@ describe('AuthService refresh tokens', () => {
 
     const result = await service.refresh('valid-refresh-token', '127.0.0.1', 'test-agent');
 
-    expect(redis.validateToken).toHaveBeenCalledWith(1, 'valid-refresh-token', 'refresh');
+    expect(redis.validateToken).toHaveBeenCalledWith(1, 1, 'valid-refresh-token', 'refresh');
     expect(usersService.findById).toHaveBeenCalledWith(userWithRoles.id);
     expect(result).toMatchObject({
       user: userWithRoles,
@@ -185,6 +187,6 @@ describe('AuthService refresh tokens', () => {
     const { service, redis } = createService();
 
     await expect(service.logout(1)).resolves.toEqual({ success: true });
-    expect(redis.deleteUserTokens).toHaveBeenCalledWith(1);
+    expect(redis.deleteUserTokens).toHaveBeenCalledWith(1, 1);
   });
 });

@@ -15,6 +15,7 @@ function createContext(request: Record<string, any>, response: Record<string, an
 describe('OperationLogInterceptor', () => {
   it('records failed write operations with path, method, status and sanitized body', async () => {
     const prisma = {
+      withTenantData: jest.fn((data) => ({ ...data, tenantId: 1 })),
       operationLog: {
         create: jest.fn().mockResolvedValue({}),
       },

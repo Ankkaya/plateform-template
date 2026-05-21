@@ -53,7 +53,7 @@ export class OperationLogInterceptor implements NestInterceptor {
 
     try {
       await this.prisma.operationLog.create({
-        data: {
+        data: this.prisma.withTenantData({
           userId: user?.userId,
           username: user?.username,
           module,
@@ -71,7 +71,7 @@ export class OperationLogInterceptor implements NestInterceptor {
           newValue: sanitizedBody,
           response: error ? undefined : this.stringifyForLog(responseBody),
           error: error ? this.stringifyForLog(this.normalizeError(error)) : undefined,
-        },
+        }),
       });
     }
     catch (logError) {

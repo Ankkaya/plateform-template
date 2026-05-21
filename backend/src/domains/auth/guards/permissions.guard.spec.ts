@@ -20,8 +20,10 @@ describe('PermissionsGuard', () => {
       getAllAndOverride: jest.fn().mockReturnValue(['system:user:view']),
     } as unknown as Reflector;
     const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantWhere: jest.fn((where = {}) => ({ ...where, tenantId: 1 })),
       user: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           roles: [
             {
               code: 'operator',
@@ -41,8 +43,10 @@ describe('PermissionsGuard', () => {
       getAllAndOverride: jest.fn().mockReturnValue(['system:user:delete']),
     } as unknown as Reflector;
     const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantWhere: jest.fn((where = {}) => ({ ...where, tenantId: 1 })),
       user: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           roles: [{ code: 'admin', menus: [] }],
         }),
       },
@@ -57,8 +61,10 @@ describe('PermissionsGuard', () => {
       getAllAndOverride: jest.fn().mockReturnValue(['system:user:delete']),
     } as unknown as Reflector;
     const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantWhere: jest.fn((where = {}) => ({ ...where, tenantId: 1 })),
       user: {
-        findUnique: jest.fn().mockResolvedValue({
+        findFirst: jest.fn().mockResolvedValue({
           roles: [
             {
               code: 'operator',

@@ -14,8 +14,8 @@ export class DictionariesService {
 
   async createType(dto: CreateDictionaryTypeDto) {
     const code = dto.code.trim();
-    const existingType = await this.prisma.dictionaryType.findUnique({
-      where: { code },
+    const existingType = await this.prisma.dictionaryType.findFirst({
+      where: this.prisma.withTenantWhere({ code }),
     });
 
     if (existingType) {
@@ -23,13 +23,13 @@ export class DictionariesService {
     }
 
     const type = await this.prisma.dictionaryType.create({
-      data: {
+      data: this.prisma.withTenantData({
         name: dto.name.trim(),
         code,
         description: dto.description?.trim() || null,
         isEnabled: dto.isEnabled ?? true,
         sort: dto.sort ?? 0,
-      },
+      }),
     });
 
     return DictionaryTypeVo.fromEntity(type);
@@ -39,7 +39,7 @@ export class DictionariesService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const keyword = query.keyword?.trim();
-    const where: any = { deletedAt: null };
+    const where: any = this.prisma.withTenantWhere({ deletedAt: null });
 
     if (keyword) {
       where.OR = [
@@ -56,7 +56,7 @@ export class DictionariesService {
         where,
         include: {
           _count: {
-            select: { items: { where: { deletedAt: null } } },
+            select: { items: { where: this.prisma.withTenantWhere({ deletedAt: null }) } },
           },
         },
         orderBy: [{ sort: 'asc' }, { id: 'asc' }],
@@ -76,10 +76,10 @@ export class DictionariesService {
 
   async findType(id: number) {
     const type = await this.prisma.dictionaryType.findFirst({
-      where: { id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
       include: {
         _count: {
-          select: { items: { where: { deletedAt: null } } },
+          select: { items: { where: this.prisma.withTenantWhere({ deletedAt: null }) } },
         },
       },
     });
@@ -93,7 +93,7 @@ export class DictionariesService {
 
   async updateType(id: number, dto: UpdateDictionaryTypeDto) {
     const existingType = await this.prisma.dictionaryType.findFirst({
-      where: { id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!existingType) {
@@ -102,10 +102,10 @@ export class DictionariesService {
 
     if (dto.code && dto.code.trim() !== existingType.code) {
       const duplicateType = await this.prisma.dictionaryType.findFirst({
-        where: {
+        where: this.prisma.withTenantWhere({
           code: dto.code.trim(),
           NOT: { id },
-        },
+        }),
       });
 
       if (duplicateType) {
@@ -114,7 +114,7 @@ export class DictionariesService {
     }
 
     const type = await this.prisma.dictionaryType.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.code !== undefined ? { code: dto.code.trim() } : {}),
@@ -129,7 +129,7 @@ export class DictionariesService {
 
   async removeType(id: number) {
     const type = await this.prisma.dictionaryType.findFirst({
-      where: { id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!type) {
@@ -137,7 +137,7 @@ export class DictionariesService {
     }
 
     const activeItemCount = await this.prisma.dictionaryItem.count({
-      where: { typeId: id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ typeId: id, deletedAt: null }),
     });
 
     if (activeItemCount > 0) {
@@ -145,7 +145,7 @@ export class DictionariesService {
     }
 
     await this.prisma.dictionaryType.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: { deletedAt: new Date() },
     });
 
@@ -157,7 +157,7 @@ export class DictionariesService {
     await this.ensureUniqueItemValue(dto.typeId, dto.value);
 
     const item = await this.prisma.dictionaryItem.create({
-      data: {
+      data: this.prisma.withTenantData({
         typeId: dto.typeId,
         label: dto.label.trim(),
         value: dto.value.trim(),
@@ -165,7 +165,7 @@ export class DictionariesService {
         isEnabled: dto.isEnabled ?? true,
         sort: dto.sort ?? 0,
         remark: dto.remark?.trim() || null,
-      },
+      }),
     });
 
     return DictionaryItemVo.fromEntity(item);
@@ -178,7 +178,7 @@ export class DictionariesService {
 
   async findItemsByTypeCode(code: string, query: QueryDictionaryItemDto) {
     const type = await this.prisma.dictionaryType.findFirst({
-      where: { code, deletedAt: null, isEnabled: true },
+      where: this.prisma.withTenantWhere({ code, deletedAt: null, isEnabled: true }),
     });
 
     if (!type) {
@@ -190,7 +190,7 @@ export class DictionariesService {
 
   async updateItem(id: number, dto: UpdateDictionaryItemDto) {
     const existingItem = await this.prisma.dictionaryItem.findFirst({
-      where: { id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!existingItem) {
@@ -203,7 +203,7 @@ export class DictionariesService {
     await this.ensureUniqueItemValue(nextTypeId, nextValue, id);
 
     const item = await this.prisma.dictionaryItem.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: this.normalizeItemData(dto, existingItem),
     });
 
@@ -212,7 +212,7 @@ export class DictionariesService {
 
   async removeItem(id: number) {
     const item = await this.prisma.dictionaryItem.findFirst({
-      where: { id, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
     });
 
     if (!item) {
@@ -220,7 +220,7 @@ export class DictionariesService {
     }
 
     await this.prisma.dictionaryItem.update({
-      where: { id },
+      where: this.prisma.withTenantWhere({ id }),
       data: { deletedAt: new Date() },
     });
 
@@ -229,13 +229,13 @@ export class DictionariesService {
 
   private async findItems(query: QueryDictionaryItemDto & { typeId: number; enabledTypeOnly?: boolean }) {
     const keyword = query.keyword?.trim();
-    const where: any = {
+    const where: any = this.prisma.withTenantWhere({
       typeId: query.typeId,
       deletedAt: null,
-    };
+    });
 
     if (query.enabledTypeOnly) {
-      where.type = { isEnabled: true, deletedAt: null };
+      where.type = this.prisma.withTenantWhere({ isEnabled: true, deletedAt: null });
       where.isEnabled = true;
     }
     if (keyword) {
@@ -258,7 +258,7 @@ export class DictionariesService {
 
   private async ensureActiveType(typeId: number) {
     const type = await this.prisma.dictionaryType.findFirst({
-      where: { id: typeId, deletedAt: null },
+      where: this.prisma.withTenantWhere({ id: typeId, deletedAt: null }),
     });
 
     if (!type) {
@@ -270,12 +270,12 @@ export class DictionariesService {
 
   private async ensureUniqueItemValue(typeId: number, value: string, excludeId?: number) {
     const duplicateItem = await this.prisma.dictionaryItem.findFirst({
-      where: {
+      where: this.prisma.withTenantWhere({
         typeId,
         value: value.trim(),
         deletedAt: null,
         ...(excludeId ? { NOT: { id: excludeId } } : {}),
-      },
+      }),
     });
 
     if (duplicateItem) {

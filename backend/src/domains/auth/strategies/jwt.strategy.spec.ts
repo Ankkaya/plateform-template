@@ -15,9 +15,12 @@ describe('JwtStrategy', () => {
     const redis = {
       validateToken: jest.fn().mockResolvedValue(true),
     };
+    const tenantContext = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+    };
 
-    const strategy = new JwtStrategy(usersService as any, redis as any);
-    return { strategy, usersService, redis };
+    const strategy = new JwtStrategy(usersService as any, redis as any, tenantContext as any);
+    return { strategy, usersService, redis, tenantContext };
   }
 
   it('accepts the request when the access token is cached in redis', async () => {
@@ -28,12 +31,12 @@ describe('JwtStrategy', () => {
       },
     };
 
-    await expect(strategy.validate(req as any, { sub: 1 })).resolves.toMatchObject({
+    await expect(strategy.validate(req as any, { sub: 1, tenantId: 1 })).resolves.toMatchObject({
       ...user,
       sub: 1,
       userId: 1,
     });
-    expect(redis.validateToken).toHaveBeenCalledWith(1, 'access-token', 'access');
+    expect(redis.validateToken).toHaveBeenCalledWith(1, 1, 'access-token', 'access');
   });
 
   it('rejects the request when the access token is missing from redis', async () => {
@@ -45,7 +48,7 @@ describe('JwtStrategy', () => {
       },
     };
 
-    await expect(strategy.validate(req as any, { sub: 1 })).rejects.toBeInstanceOf(
+    await expect(strategy.validate(req as any, { sub: 1, tenantId: 1 })).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
   });

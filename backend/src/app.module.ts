@@ -1,5 +1,7 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TenantMiddleware } from './common/tenant/tenant.middleware';
+import { TenantModule } from './common/tenant/tenant.module';
 import { AuthModule } from './domains/auth/auth.module';
 import { DictionariesModule } from './domains/dictionaries/dictionaries.module';
 import { MenusModule } from './domains/menus/menus.module';
@@ -17,6 +19,7 @@ import { AppController } from './app.controller';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    TenantModule,
     PrismaModule,
     RedisModule,
     MinioModule,
@@ -32,4 +35,8 @@ import { AppController } from './app.controller';
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantMiddleware).forRoutes('*');
+  }
+}

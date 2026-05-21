@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../../infrastructure/redis/redis.service';
+import { TenantContextService } from '@/common/tenant/tenant-context.service';
 
 /**
  * 登录限频策略：
@@ -17,7 +18,10 @@ export class LoginThrottleService {
   private readonly maxFails = 5;
   private readonly logger = new Logger(LoginThrottleService.name);
 
-  constructor(private readonly redis: RedisService) {}
+  constructor(
+    private readonly redis: RedisService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
   /** 登录前调用：若已锁定则抛出异常；Redis 不可用时降级放行 */
   async assertNotLocked(username: string, ip: string): Promise<void> {
@@ -77,9 +81,10 @@ export class LoginThrottleService {
 
   private buildKeys(username: string, ip: string) {
     const u = username?.toLowerCase()?.trim() || 'unknown';
+    const tenantScope = this.tenantContext.getTenantId() ?? 'global';
     return {
-      failKeys: [`login:fail:ip:${ip}`, `login:fail:user:${u}`],
-      lockKeys: [`login:lock:ip:${ip}`, `login:lock:user:${u}`],
+      failKeys: [`login:fail:tenant:${tenantScope}:ip:${ip}`, `login:fail:tenant:${tenantScope}:user:${u}`],
+      lockKeys: [`login:lock:tenant:${tenantScope}:ip:${ip}`, `login:lock:tenant:${tenantScope}:user:${u}`],
     };
   }
 

@@ -42,6 +42,84 @@ For tree data, fetch flat records and build the tree in service code, as `MenusS
 
 ---
 
+## Scenario: Shared-Database Tenant Scoping
+
+### 1. Scope / Trigger
+- Trigger: Backend APIs run in shared-database multi-tenant mode.
+- Applies when adding a tenant-owned model, protected endpoint, auth/token behavior, upload record, audit log, or seed data.
+
+### 2. Signatures
+- Request header: `tenant_id: <positive integer>`.
+- Fallback request header: `x-tenant-id: <positive integer>`.
+- Request context: `TenantContextService.requireTenantId(): number`.
+- Prisma helpers:
+  - `this.prisma.withTenantWhere(where?)`
+  - `this.prisma.withTenantData(data)`
+  - `this.prisma.withTenantCreateManyData(data[])`
+- DB: tenant-owned tables include `tenantId Int` and relation `tenant Tenant`.
+- Frontend env: `VITE_TENANT_ID`, defaulting to `1` when no local tenant is selected.
+
+### 3. Contracts
+- Every request that touches tenant-owned data must resolve the current tenant from `tenant_id`.
+- Domain services must use `withTenantWhere(...)` for tenant-owned reads/counts and `withTenantData(...)` for tenant-owned creates.
+- `createMany` calls for tenant-owned rows must use `withTenantCreateManyData(...)`.
+- Composite business keys must include `tenantId`, such as `@@unique([tenantId, username])`, `@@unique([tenantId, code])`, and `@@unique([tenantId, key])`.
+- Auth access/refresh tokens include `tenantId`, and Redis token keys are scoped as `token:<type>:<tenantId>:<userId>`.
+- Permission guards must load the user, roles, and menus inside the current tenant.
+- Relation assignment endpoints must verify all target role/menu IDs exist in the current tenant before `set/connect`.
+- Upload object keys created through the file API must be prefixed with `tenants/<tenantId>/`.
+- Seed data must create the default tenant first and then seed users, roles, menus, dictionaries, and settings under that tenant.
+
+### 4. Validation & Error Matrix
+- Missing `tenant_id` when tenant-owned data is accessed -> `400 Bad Request`.
+- Non-integer or non-positive `tenant_id` -> `400 Bad Request`.
+- JWT `tenantId` differs from the request tenant -> `401 Unauthorized`.
+- Required role/menu/user exists only in another tenant -> `404 Not Found` or `403 Forbidden` depending on the guard/service boundary.
+- File API receives an object key under another tenant prefix -> `400 Bad Request`.
+- Duplicate business key in the same tenant -> `409 Conflict`.
+- Same business key in a different tenant -> allowed.
+
+### 5. Good/Base/Bad Cases
+- Good: `UsersService.findAll()` calls `this.prisma.user.findMany({ where: this.prisma.withTenantWhere({ deletedAt: null }) })`.
+- Base: tenant `1` contains the seeded `admin` user, `admin` role, and system menus.
+- Bad: `this.prisma.role.update({ data: { menus: { set: menuIds.map(...) } } })` without first counting those menus inside `tenantId`.
+
+### 6. Tests Required
+- Run `pnpm exec prisma validate` and `pnpm exec prisma generate` after schema changes.
+- Run backend `pnpm exec tsc --noEmit` and `pnpm test` after tenant-scoped service/auth changes.
+- Guard/auth tests must assert tenant-scoped Redis token validation and JWT tenant mismatch rejection when relevant.
+- Service tests that mock Prisma must include `requireTenantId`, `withTenantWhere`, and `withTenantData` helpers.
+- Run frontend `pnpm exec vue-tsc --noEmit` after changing the header/env contract.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+await this.prisma.user.findMany({
+  where: { deletedAt: null },
+});
+```
+
+#### Correct
+```ts
+await this.prisma.user.findMany({
+  where: this.prisma.withTenantWhere({ deletedAt: null }),
+});
+```
+
+#### Wrong
+```ts
+await this.prisma.loginLog.create({ data });
+```
+
+#### Correct
+```ts
+await this.prisma.loginLog.create({
+  data: this.prisma.withTenantData(data),
+});
+```
+
+---
+
 ## Mutations
 
 Validate existence and conflicts before update/delete:
@@ -149,7 +227,7 @@ updateRole() {}
 - Button permissions: `system:dictionary:create`, `system:dictionary:update`, `system:dictionary:delete`, `system:dictionary:item:create`, `system:dictionary:item:update`, `system:dictionary:item:delete`.
 
 ### 3. Contracts
-- `DictionaryType.code` is globally unique because the database has a unique index; soft-deleted codes are not reused.
+- `DictionaryType.code` is unique per tenant because the database has a composite unique index; soft-deleted codes are not reused within the same tenant.
 - Dictionary list response is paginated as `{ list, total, page, pageSize }`.
 - Type/item reads must filter `deletedAt: null`.
 - `GET /dictionaries/code/:code/items` is for enabled dictionary options and should only return enabled data from an enabled type.
@@ -192,7 +270,8 @@ await this.prisma.dictionaryType.findMany({
 ## Common Mistakes
 
 - Forgetting `deletedAt: null` in list/detail queries leaks soft-deleted data.
+- Forgetting `tenantId` in list/detail queries leaks data across tenants.
 - Updating `schema.prisma` without adding a migration leaves Docker/local databases out of sync.
 - Adding a menu path in seed without matching frontend router path breaks sidebar navigation.
 - Using raw `any` for JSON settings without normalizing defaults can leak `undefined` into callers.
-- Treating dictionary codes as reusable after soft delete conflicts with the global unique index.
+- Treating dictionary codes as reusable after soft delete conflicts with the per-tenant unique index.

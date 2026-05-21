@@ -8,11 +8,36 @@ datasource db {
 
 // ==================== RBAC 核心 ====================
 
+// 租户模型
+model Tenant {
+  id        Int       @id @default(autoincrement())
+  name      String
+  code      String    @unique
+  isEnabled Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users            User[]
+  roles            Role[]
+  menus            Menu[]
+  systemSettings  SystemSetting[]
+  dictionaryTypes DictionaryType[]
+  dictionaryItems DictionaryItem[]
+  operationLogs   OperationLog[]
+  loginLogs       LoginLog[]
+  uploadRecords   UploadRecord[]
+
+  @@index([deletedAt])
+  @@index([isEnabled])
+}
+
 // 用户模型
 model User {
   id        Int       @id @default(autoincrement())
-  username  String    @unique
-  email     String?   @unique
+  tenantId  Int
+  username  String
+  email     String?
   password  String
   name      String?
   avatarUrl String?
@@ -20,33 +45,43 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime? // 软删除标记
 
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
   // 用户与角色多对多关系
   roles     Role[]    @relation("UserRoles")
 
+  @@unique([tenantId, username])
+  @@unique([tenantId, email])
+  @@index([tenantId])
   @@index([deletedAt])
 }
 
 // 角色模型
 model Role {
   id          Int       @id @default(autoincrement())
-  name        String    @unique
-  code        String    @unique
+  tenantId    Int
+  name        String
+  code        String
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime? // 软删除标记
 
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   // 角色与用户多对多关系
   users       User[]    @relation("UserRoles")
   // 角色与菜单多对多关系
   menus       Menu[]    @relation("RoleMenus")
 
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@index([deletedAt])
 }
 
 // 菜单模型（树形结构）
 model Menu {
   id          Int       @id @default(autoincrement())
+  tenantId    Int
   name        String
   path        String?
   icon        String?
@@ -61,6 +96,7 @@ model Menu {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime? // 软删除标记
 
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   // 自引用关系（树形）
   parent      Menu?     @relation("MenuTree", fields: [parentId], references: [id])
   children    Menu[]    @relation("MenuTree")
@@ -68,6 +104,7 @@ model Menu {
   // 角色与菜单多对多关系
   roles       Role[]    @relation("RoleMenus")
 
+  @@index([tenantId])
   @@index([deletedAt])
   @@index([permission])
 }
@@ -77,20 +114,27 @@ model Menu {
 // 系统配置 KV
 model SystemSetting {
   id          Int       @id @default(autoincrement())
-  key         String    @unique
+  tenantId    Int
+  key         String
   name        String
   value       Json
   category    String?
   description String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
 }
 
 // 数据字典类型
 model DictionaryType {
   id          Int       @id @default(autoincrement())
+  tenantId    Int
   name        String
-  code        String    @unique
+  code        String
   description String?
   isEnabled   Boolean   @default(true)
   sort        Int       @default(0)
@@ -98,8 +142,11 @@ model DictionaryType {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   items       DictionaryItem[]
 
+  @@unique([tenantId, code])
+  @@index([tenantId])
   @@index([deletedAt])
   @@index([isEnabled])
   @@index([sort])
@@ -108,6 +155,7 @@ model DictionaryType {
 // 数据字典项
 model DictionaryItem {
   id          Int            @id @default(autoincrement())
+  tenantId    Int
   typeId      Int
   label       String
   value       String
@@ -119,8 +167,10 @@ model DictionaryItem {
   updatedAt   DateTime       @updatedAt
   deletedAt   DateTime?
 
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
   type        DictionaryType @relation(fields: [typeId], references: [id])
 
+  @@index([tenantId])
   @@index([typeId])
   @@index([deletedAt])
   @@index([isEnabled])
@@ -130,6 +180,7 @@ model DictionaryItem {
 // 操作日志
 model OperationLog {
   id          Int       @id @default(autoincrement())
+  tenantId    Int
   userId      Int?
   username    String?
   action      LogAction
@@ -151,6 +202,9 @@ model OperationLog {
   error       String?
   createdAt   DateTime  @default(now())
 
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
   @@index([userId])
   @@index([createdAt])
   @@index([module])
@@ -159,6 +213,7 @@ model OperationLog {
 // 登录日志
 model LoginLog {
   id        Int          @id @default(autoincrement())
+  tenantId  Int
   userId    Int?
   username  String?
   type      LoginLogType
@@ -168,6 +223,9 @@ model LoginLog {
   message   String?
   createdAt DateTime     @default(now())
 
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
   @@index([userId])
   @@index([createdAt])
 }
@@ -175,6 +233,7 @@ model LoginLog {
 // 上传记录
 model UploadRecord {
   id           Int      @id @default(autoincrement())
+  tenantId     Int
   userId       Int?
   username     String?
   originalName String
@@ -190,6 +249,9 @@ model UploadRecord {
   status       String?
   createdAt    DateTime @default(now())
 
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
   @@index([userId])
   @@index([createdAt])
   @@index([module])

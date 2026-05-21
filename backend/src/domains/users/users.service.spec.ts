@@ -14,6 +14,9 @@ describe('UsersService.update avatarUrl', () => {
 
   function createService() {
     const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantWhere: jest.fn((where = {}) => ({ ...where, tenantId: 1 })),
+      withTenantData: jest.fn((data) => ({ ...data, tenantId: 1 })),
       user: {
         create: jest.fn(),
         findFirst: jest.fn(),
@@ -53,6 +56,7 @@ describe('UsersService.update avatarUrl', () => {
         username: 'avatar-user',
         password: 'hashed-password',
         avatarUrl: 'http://example.com/avatar.png',
+        tenantId: 1,
       }),
     });
     expect(result.avatarUrl).toBe('http://example.com/avatar.png');
@@ -85,14 +89,16 @@ describe('UsersService.update avatarUrl', () => {
     });
 
     expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 1 },
+      where: { id: 1, tenantId: 1 },
       data: expect.objectContaining({
         email: 'admin@example.com',
         name: '管理员',
         avatarUrl: 'http://example.com/avatar.png',
       }),
       include: {
-        roles: true,
+        roles: {
+          where: { tenantId: 1, deletedAt: null },
+        },
       },
     });
     expect(result).toMatchObject({
@@ -125,12 +131,14 @@ describe('UsersService.update avatarUrl', () => {
     });
 
     expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 1 },
+      where: { id: 1, tenantId: 1 },
       data: expect.objectContaining({
         avatarUrl: null,
       }),
       include: {
-        roles: true,
+        roles: {
+          where: { tenantId: 1, deletedAt: null },
+        },
       },
     });
     expect(result.avatarUrl).toBeNull();
