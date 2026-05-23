@@ -41,6 +41,104 @@ export interface AuthResponse {
   refreshToken: string
 }
 
+export type TenantStatus = 'ACTIVE' | 'DISABLED'
+export type SubscriptionStatus = 'ACTIVE' | 'EXPIRED' | 'CANCELED'
+
+export interface PlatformUser {
+  id: number
+  username: string
+  name?: string | null
+  email?: string | null
+  isEnabled: boolean
+  isSuperAdmin: boolean
+  permissions: string[]
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface SaasPlan {
+  id: number
+  name: string
+  code: string
+  description?: string | null
+  priceCents: number
+  userLimit?: number | null
+  storageLimitBytes?: string | null
+  storageLimitMb?: number | null
+  durationDays: number
+  isEnabled: boolean
+  sort: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface TenantSubscription {
+  id: number
+  tenantId: number
+  planId: number
+  status: SubscriptionStatus
+  startsAt: string
+  expiresAt?: string | null
+  canceledAt?: string | null
+  createdAt: string
+  updatedAt: string
+  tenant?: Tenant
+  plan?: SaasPlan
+}
+
+export interface Tenant {
+  id: number
+  name: string
+  code: string
+  status: TenantStatus
+  isEnabled: boolean
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  logoUrl?: string | null
+  domain?: string | null
+  remark?: string | null
+  createdAt: string
+  updatedAt: string
+  subscription?: TenantSubscription | null
+}
+
+export interface CreateSaasPlanDto {
+  name: string
+  code?: string
+  description?: string | null
+  priceCents?: number
+  userLimit?: number | null
+  storageLimitMb?: number | null
+  durationDays: number
+  isEnabled?: boolean
+  sort?: number
+}
+
+export interface UpdateSaasPlanDto extends Partial<CreateSaasPlanDto> {}
+
+export interface CreateTenantDto {
+  name: string
+  contactName?: string
+  contactEmail?: string
+  contactPhone?: string
+  remark?: string
+  planId: number
+  adminUsername: string
+  adminPassword: string
+  adminName?: string
+  adminEmail?: string
+}
+
+export interface UpdateTenantDto {
+  name?: string
+  isEnabled?: boolean
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+  remark?: string | null
+}
+
 // 用户
 export interface User {
   id: number
@@ -147,6 +245,7 @@ export interface Menu {
   parentId?: number
   order: number
   hidden: boolean
+  isTenantGranted: boolean
   type: 'menu' | 'button' | 'iframe'
   createdAt: string
   updatedAt: string

@@ -15,7 +15,10 @@ export class MenusService {
   async create(createMenuDto: CreateMenuDto) {
     await this.ensureTenantParent(createMenuDto.parentId);
     const menu = await this.prisma.menu.create({
-      data: this.prisma.withTenantData(createMenuDto),
+      data: this.prisma.withTenantData({
+        ...createMenuDto,
+        isTenantGranted: false,
+      }),
     });
     return this.toMenuVo(menu);
   }
@@ -23,12 +26,12 @@ export class MenusService {
   async findAll() {
     const tenantId = this.prisma.requireTenantId();
     const menus = await this.prisma.menu.findMany({
-      where: this.prisma.withTenantWhere({ deletedAt: null }),
+      where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
       orderBy: { order: 'asc' },
       include: {
         parent: true,
         children: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
         },
         roles: {
           where: { tenantId, deletedAt: null },
@@ -45,7 +48,7 @@ export class MenusService {
   // 获取所有菜单（扁平化）
   async findAllFlat() {
     const menus = await this.prisma.menu.findMany({
-      where: this.prisma.withTenantWhere({ deletedAt: null }),
+      where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
       orderBy: { order: 'asc' },
       include: {
         parent: true,
@@ -57,11 +60,11 @@ export class MenusService {
   async findOne(id: number) {
     const tenantId = this.prisma.requireTenantId();
     const menu = await this.prisma.menu.findFirst({
-      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
+      where: this.prisma.withTenantWhere({ id, deletedAt: null, isTenantGranted: true }),
       include: {
         parent: true,
         children: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
         },
         roles: {
           where: { tenantId, deletedAt: null },
@@ -79,7 +82,7 @@ export class MenusService {
 
   async update(id: number, updateMenuDto: UpdateMenuDto) {
     const existingMenu = await this.prisma.menu.findFirst({
-      where: this.prisma.withTenantWhere({ id, deletedAt: null }),
+      where: this.prisma.withTenantWhere({ id, deletedAt: null, isTenantGranted: true }),
     });
 
     if (!existingMenu) {
@@ -99,7 +102,7 @@ export class MenusService {
       include: {
         parent: true,
         children: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
         },
       },
     });
@@ -111,7 +114,7 @@ export class MenusService {
 
     // 检查是否有子菜单（未软删除的）
     const childCount = await this.prisma.menu.count({
-      where: this.prisma.withTenantWhere({ parentId: id, deletedAt: null }),
+      where: this.prisma.withTenantWhere({ parentId: id, deletedAt: null, isTenantGranted: true }),
     });
 
     if (childCount > 0) {
@@ -134,7 +137,7 @@ export class MenusService {
     }
 
     const menus = await this.prisma.menu.findMany({
-      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null, isTenantGranted: true }),
     });
 
     if (menus.length !== uniqueIds.length) {
@@ -145,6 +148,7 @@ export class MenusService {
       where: this.prisma.withTenantWhere({
         parentId: { in: uniqueIds },
         deletedAt: null,
+        isTenantGranted: true,
         id: { notIn: uniqueIds },
       }),
     });
@@ -154,7 +158,7 @@ export class MenusService {
     }
 
     const result = await this.prisma.menu.updateMany({
-      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null }),
+      where: this.prisma.withTenantWhere({ id: { in: uniqueIds }, deletedAt: null, isTenantGranted: true }),
       data: { deletedAt: new Date() },
     });
 
@@ -168,10 +172,10 @@ export class MenusService {
       where: this.prisma.withTenantWhere({ id: roleId, deletedAt: null }),
       include: {
         menus: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
           include: {
             children: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
             },
           },
         },
@@ -197,10 +201,10 @@ export class MenusService {
           where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
               include: {
                 children: {
-                  where: { tenantId, deletedAt: null },
+                  where: { tenantId, deletedAt: null, isTenantGranted: true },
                 },
               },
             },
@@ -291,6 +295,7 @@ export class MenusService {
       where: this.prisma.withTenantWhere({
         id: parentId,
         deletedAt: null,
+        isTenantGranted: true,
       }),
     });
 

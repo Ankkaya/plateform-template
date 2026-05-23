@@ -214,7 +214,7 @@ import PageToolbar from '@/components/common/PageToolbar.vue'
 import PageTableCard from '@/components/common/PageTableCard.vue'
 import UserAvatarEditorModal from '@/components/common/UserAvatarEditorModal.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
-import { autoFitTableColumns, createActionColumn } from '@/utils/table'
+import { autoFitTableColumns, createActionColumn, createIndexColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
 import { resolveFileUrl } from '@/utils/file-url'
 import { exportExcel } from '@/utils/export'
@@ -318,7 +318,7 @@ const formAvatarDisplayUrl = computed(() => {
 const createColumns = (): DataTableColumns<User> => {
   return autoFitTableColumns([
     { type: 'selection', width: 48, fixed: 'left' },
-    { title: 'ID', key: 'id' },
+    createIndexColumn<User>(() => (pagination.page - 1) * pagination.pageSize),
     {
       title: '头像',
       key: 'avatarUrl',

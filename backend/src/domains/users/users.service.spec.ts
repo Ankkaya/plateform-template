@@ -23,14 +23,17 @@ describe('UsersService.update avatarUrl', () => {
         update: jest.fn(),
       },
     };
+    const quota = {
+      assertCanCreateUser: jest.fn().mockResolvedValue(undefined),
+    };
 
-    const service = new UsersService(prisma as any, {} as any);
+    const service = new UsersService(prisma as any, {} as any, quota as any);
 
-    return { service, prisma };
+    return { service, prisma, quota };
   }
 
   it('persists avatarUrl when creating a user', async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, quota } = createService();
     const hashSpy = jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashed-password' as never);
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockResolvedValueOnce({
@@ -51,6 +54,7 @@ describe('UsersService.update avatarUrl', () => {
       avatarUrl: 'http://example.com/avatar.png',
     });
 
+    expect(quota.assertCanCreateUser).toHaveBeenCalledTimes(1);
     expect(prisma.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         username: 'avatar-user',
@@ -62,6 +66,18 @@ describe('UsersService.update avatarUrl', () => {
     expect(result.avatarUrl).toBe('http://example.com/avatar.png');
 
     hashSpy.mockRestore();
+  });
+
+  it('checks the tenant user-count quota before creating a user', async () => {
+    const { service, prisma, quota } = createService();
+    quota.assertCanCreateUser.mockRejectedValueOnce(new Error('quota exceeded'));
+
+    await expect(service.create({
+      username: 'quota-user',
+      password: 'plain-password',
+    })).rejects.toThrow('quota exceeded');
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
   it('persists avatarUrl when updating a user profile', async () => {

@@ -11,6 +11,11 @@ if (typeof connectionString !== 'string' || connectionString.trim().length === 0
 
 const pool = new Pool({ connectionString });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function addDays(base: Date, days: number) {
+  return new Date(base.getTime() + days * MS_PER_DAY);
+}
 
 async function main() {
   console.log('🌱 开始初始化数据...');
@@ -19,6 +24,7 @@ async function main() {
     where: { code: 'default' },
     update: {
       name: '默认租户',
+      status: 'ACTIVE',
       isEnabled: true,
       deletedAt: null,
     },
@@ -26,11 +32,117 @@ async function main() {
       id: 1,
       name: '默认租户',
       code: 'default',
+      status: 'ACTIVE',
       isEnabled: true,
     },
   });
 
   console.log('✅ 默认租户创建完成:', defaultTenant.name);
+
+  const freePlan = await prisma.saasPlan.upsert({
+    where: { code: 'free' },
+    update: {
+      name: '免费版',
+      description: '本地开发和小团队试用套餐',
+      priceCents: 0,
+      userLimit: 5,
+      storageLimitBytes: BigInt(1024 * 1024 * 1024),
+      durationDays: 30,
+      isEnabled: true,
+      sort: 1,
+      deletedAt: null,
+    },
+    create: {
+      name: '免费版',
+      code: 'free',
+      description: '本地开发和小团队试用套餐',
+      priceCents: 0,
+      userLimit: 5,
+      storageLimitBytes: BigInt(1024 * 1024 * 1024),
+      durationDays: 30,
+      isEnabled: true,
+      sort: 1,
+    },
+  });
+
+  await prisma.saasPlan.upsert({
+    where: { code: 'pro' },
+    update: {
+      name: '专业版',
+      description: '适合正式团队使用的内部套餐',
+      priceCents: 9900,
+      userLimit: 100,
+      storageLimitBytes: BigInt(20 * 1024 * 1024 * 1024),
+      durationDays: 365,
+      isEnabled: true,
+      sort: 2,
+      deletedAt: null,
+    },
+    create: {
+      name: '专业版',
+      code: 'pro',
+      description: '适合正式团队使用的内部套餐',
+      priceCents: 9900,
+      userLimit: 100,
+      storageLimitBytes: BigInt(20 * 1024 * 1024 * 1024),
+      durationDays: 365,
+      isEnabled: true,
+      sort: 2,
+    },
+  });
+
+  const defaultSubscriptionStartsAt = new Date();
+  const defaultSubscriptionExpiresAt = addDays(defaultSubscriptionStartsAt, freePlan.durationDays);
+
+  await prisma.tenantSubscription.upsert({
+    where: { tenantId: defaultTenant.id },
+    update: {
+      planId: freePlan.id,
+      status: 'ACTIVE',
+      startsAt: defaultSubscriptionStartsAt,
+      expiresAt: defaultSubscriptionExpiresAt,
+      canceledAt: null,
+      deletedAt: null,
+    },
+    create: {
+      tenantId: defaultTenant.id,
+      planId: freePlan.id,
+      status: 'ACTIVE',
+      startsAt: defaultSubscriptionStartsAt,
+      expiresAt: defaultSubscriptionExpiresAt,
+    },
+  });
+
+  console.log('✅ SaaS 默认套餐和默认租户订阅创建完成');
+
+  const platformAdminUsername = process.env.PLATFORM_ADMIN_USERNAME || 'platform_admin';
+  const platformAdminPassword = process.env.PLATFORM_ADMIN_PASSWORD || '123456';
+  const platformAdminEmail = process.env.PLATFORM_ADMIN_EMAIL || 'platform_admin@platform.local';
+  const hashedPlatformPassword = await bcrypt.hash(platformAdminPassword, 10);
+
+  const platformAdmin = await prisma.platformUser.upsert({
+    where: { username: platformAdminUsername },
+    update: {
+      password: hashedPlatformPassword,
+      name: process.env.PLATFORM_ADMIN_NAME || '平台管理员',
+      email: platformAdminEmail,
+      isEnabled: true,
+      isSuperAdmin: true,
+      permissions: ['platform:*'],
+      deletedAt: null,
+    },
+    create: {
+      username: platformAdminUsername,
+      password: hashedPlatformPassword,
+      name: process.env.PLATFORM_ADMIN_NAME || '平台管理员',
+      email: platformAdminEmail,
+      isEnabled: true,
+      isSuperAdmin: true,
+      permissions: ['platform:*'],
+    },
+  });
+
+  console.log('✅ 平台管理员创建完成:', platformAdmin.username, '/ 密码:', platformAdminPassword);
 
   // 1. 创建角色
   const adminRole = await prisma.role.upsert({
@@ -87,6 +199,7 @@ async function main() {
       permission: null,
       order: 1,
       type: 'menu',
+      isTenantGranted: true,
     },
     create: {
       id: 1,
@@ -97,6 +210,7 @@ async function main() {
       permission: null,
       order: 1,
       type: 'menu',
+      isTenantGranted: true,
     },
   });
 
@@ -117,11 +231,13 @@ async function main() {
         ...item,
         tenantId: defaultTenant.id,
         type: 'menu',
+        isTenantGranted: true,
       },
       create: {
         ...item,
         tenantId: defaultTenant.id,
         type: 'menu',
+        isTenantGranted: true,
       },
     });
   }
@@ -165,12 +281,14 @@ async function main() {
         redirect: null,
         hidden: true,
         type: 'button',
+        isTenantGranted: true,
       },
       create: {
         ...item,
         tenantId: defaultTenant.id,
         hidden: true,
         type: 'button',
+        isTenantGranted: true,
       },
     });
   }
@@ -277,6 +395,53 @@ async function main() {
   });
 
   console.log('✅ 数据字典初始化完成: 通用状态 + 是否标识');
+
+  const systemSettings = [
+    {
+      key: 'mini-program.auth',
+      category: 'mini-program',
+      name: '小程序配置',
+      description: '微信小程序服务端配置',
+      value: {
+        wechatAppId: '',
+        wechatAppSecret: '',
+      },
+    },
+    {
+      key: 'wechat.pay',
+      category: 'wechat',
+      name: '微信支付配置',
+      description: '微信支付商户参数配置',
+      value: {
+        mchId: '',
+        mchSerialNo: '',
+        apiV3Key: '',
+        notifyUrl: '',
+        refundNotifyUrl: '',
+        privateKey: '',
+        platformPublicKey: '',
+        platformCertPath: '',
+      },
+    },
+  ];
+
+  for (const setting of systemSettings) {
+    await prisma.systemSetting.upsert({
+      where: { tenantId_key: { tenantId: defaultTenant.id, key: setting.key } },
+      update: {
+        category: setting.category,
+        name: setting.name,
+        description: setting.description,
+        value: setting.value,
+      },
+      create: {
+        tenantId: defaultTenant.id,
+        ...setting,
+      },
+    });
+  }
+
+  console.log('✅ 系统配置初始化完成: 小程序配置 + 微信支付配置');
 
   // 4. 给管理员角色分配所有菜单
   const allMenus = await prisma.menu.findMany({

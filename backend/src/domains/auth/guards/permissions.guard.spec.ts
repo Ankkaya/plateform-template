@@ -32,6 +32,11 @@ describe('PermissionsGuard', () => {
           ],
         }),
       },
+      menu: {
+        findMany: jest.fn().mockResolvedValue([
+          { permission: 'system:user:view', path: '/system/users' },
+        ]),
+      },
     } as any;
     const guard = new PermissionsGuard(reflector, prisma);
 
@@ -50,10 +55,38 @@ describe('PermissionsGuard', () => {
           roles: [{ code: 'admin', menus: [] }],
         }),
       },
+      menu: {
+        findMany: jest.fn().mockResolvedValue([
+          { permission: 'system:user:delete', path: null },
+        ]),
+      },
     } as any;
     const guard = new PermissionsGuard(reflector, prisma);
 
     await expect(guard.canActivate(createContext(1))).resolves.toBe(true);
+  });
+
+  it('rejects admin users when a permission is outside the platform tenant ceiling', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(['system:menu:delete']),
+    } as unknown as Reflector;
+    const prisma = {
+      requireTenantId: jest.fn().mockReturnValue(1),
+      withTenantWhere: jest.fn((where = {}) => ({ ...where, tenantId: 1 })),
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          roles: [{ code: 'admin', menus: [] }],
+        }),
+      },
+      menu: {
+        findMany: jest.fn().mockResolvedValue([
+          { permission: 'system:menu:view', path: '/system/menus' },
+        ]),
+      },
+    } as any;
+    const guard = new PermissionsGuard(reflector, prisma);
+
+    await expect(guard.canActivate(createContext(1))).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects users that do not have the required permission', async () => {
@@ -72,6 +105,11 @@ describe('PermissionsGuard', () => {
             },
           ],
         }),
+      },
+      menu: {
+        findMany: jest.fn().mockResolvedValue([
+          { permission: 'system:user:delete', path: null },
+        ]),
       },
     } as any;
     const guard = new PermissionsGuard(reflector, prisma);

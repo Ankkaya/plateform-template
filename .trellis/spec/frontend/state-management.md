@@ -161,3 +161,65 @@ setAuthTokens({ token, refreshToken })
 - Restoring tabs without ensuring the route still exists.
 - Treating all server data as global state.
 - Storing only the access token after login/register, which makes 401 refresh impossible.
+
+---
+
+## Scenario: Platform Console Auth and Request Separation
+
+### 1. Scope / Trigger
+- Trigger: The Vue app hosts both tenant-scoped admin pages and tenant-independent platform SaaS operations.
+- Applies when changing `src/api/request.ts`, platform auth storage, router guards, `/platform/*` views, or tenant selection UI.
+
+### 2. Signatures
+- Tenant client: `tenantApi` / default export from `src/api/request.ts`.
+- Platform client: `platformApi` from `src/api/request.ts`.
+- Tenant auth storage keys: `token`, `refreshToken`.
+- Platform auth storage key: `platformToken`.
+- Tenant auth store: `useAuthStore()`.
+- Platform auth store: `usePlatformAuthStore()`.
+- Platform routes: `/platform/login`, `/platform/tenants`, `/platform/plans`, `/platform/subscriptions`.
+
+### 3. Contracts
+- Tenant APIs attach `tenant_id` and tenant bearer tokens, and may refresh through `/auth/refresh`.
+- Platform APIs attach only the platform bearer token and must not attach `tenant_id`.
+- Platform token storage must be independent from tenant access/refresh token storage.
+- Platform route guards must use `usePlatformAuthStore()` and platform permissions, not tenant menu permissions.
+- Tenant route guards must continue using `useAuthStore()` and backend menu permissions.
+- Tenant selection before login must validate a positive-integer tenant ID and call `setTenantId(...)` before `authStore.login(...)`.
+- Tenant switching after login must validate a positive-integer tenant ID, update `tenant_id`, clear tenant auth, and send the user back through tenant login.
+
+### 4. Validation & Error Matrix
+- Platform route with no `platformToken` -> redirect to `/platform/login`.
+- Platform API returns `401` -> clear `platformToken` and redirect to `/platform/login`.
+- Tenant selector receives a non-positive or non-integer tenant ID -> keep the current tenant and show a validation error.
+- Tenant API returns `401` with refresh token -> refresh once and retry.
+- Tenant API returns `401` without refresh or after retry -> clear tenant tokens and redirect to `/login`.
+- User switches tenant while logged in -> clear tenant auth and require login for the new tenant.
+
+### 5. Good/Base/Bad Cases
+- Good: `platformApi.get('/platform/tenants')` sends only the platform bearer token.
+- Good: `api.get('/users')` sends tenant bearer token plus `tenant_id`.
+- Base: local tenant login defaults to tenant `1` when no stored tenant exists.
+- Bad: one request interceptor guesses auth mode by checking if the URL contains `platform`.
+- Bad: platform auth writes to the tenant `token` key and silently logs out tenant users.
+
+### 6. Tests Required
+- `platform-auth.test.mjs` must assert platform token storage does not modify tenant auth tokens.
+- `platform-permissions.test.mjs` must assert super admin, wildcard, and exact platform permission behavior.
+- `tenant.test.mjs` must assert tenant ID normalization and storage behavior.
+- `auth-refresh.test.mjs` must continue asserting tenant refresh behavior after request-client changes.
+- Run `pnpm exec vue-tsc --noEmit` after changing platform API types, routes, stores, or pages.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+const api = createClient({
+  authMode: url.includes('/platform') ? 'platform' : 'tenant',
+});
+```
+
+#### Correct
+```ts
+export const tenantApi = createTenantClient();
+export const platformApi = createPlatformClient();
+```

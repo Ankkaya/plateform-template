@@ -96,6 +96,273 @@ api.get('/users')
 
 ---
 
+## Scenario: Platform Console Request Contract
+
+### 1. Scope / Trigger
+- Trigger: SaaS platform pages operate outside tenant identity and must not reuse tenant-scoped headers or tokens.
+- Applies when changing `/platform/*` routes, platform auth state, `src/api/request.ts`, or platform SaaS API clients.
+
+### 2. Signatures
+- Tenant API client: `tenantApi` / default export from `src/api/request.ts`.
+- Platform API client: `platformApi` from `src/api/request.ts`.
+- Platform token utility: `src/utils/platform-auth.ts`.
+- Platform auth store: `usePlatformAuthStore()` from `src/store/modules/platform-auth`.
+- Platform routes: `/platform/login`, `/platform/tenants`, `/platform/plans`, `/platform/subscriptions`.
+- Backend platform endpoints:
+  - `POST /platform/auth/login`
+  - `GET /platform/auth/me`
+  - `POST /platform/auth/logout`
+  - `GET|POST|PATCH|DELETE /platform/tenants`
+  - `GET|POST|PATCH|DELETE /platform/menus`
+  - `GET|POST|PATCH|DELETE /platform/plans`
+  - `GET|PATCH /platform/subscriptions`
+
+### 3. Contracts
+- `platformApi` attaches `Authorization: Bearer <platformToken>` from storage key `platformToken`.
+- `platformApi` must not attach `tenant_id` and must not read tenant access/refresh token keys.
+- `tenantApi` remains the default client for normal admin APIs and continues to attach `tenant_id`.
+- Platform auth responses contain `{ user: PlatformUser, token: string }`; there is no platform refresh-token flow unless the backend adds one later.
+- Platform route guards must use `usePlatformAuthStore().hasPermission(...)`, not tenant `authStore.hasPermission(...)`.
+
+### 4. Validation & Error Matrix
+- Platform request uses `tenantApi` -> backend may receive tenant headers and wrong token boundary; change the API file to import `platformApi`.
+- Tenant request uses `platformApi` -> backend receives no `tenant_id`; change the API file to use the default tenant client.
+- Platform API returns `401` -> clear `platformToken` and redirect to `/platform/login`.
+- Platform user lacks route permission -> route guard redirects to the first permitted platform page or blocks navigation.
+
+### 5. Good/Base/Bad Cases
+- Good: `platformApi.get('/platform/tenants')` sends only the platform bearer token.
+- Base: tenant pages continue importing the default `api` client from `src/api/request.ts`.
+- Bad: choosing the client by checking whether the URL string starts with `/platform`.
+
+### 6. Tests Required
+- Run `pnpm test:platform-auth` after changing platform token storage.
+- Run `pnpm test:platform-permissions` after changing platform permission evaluation.
+- Run `pnpm exec vue-tsc --noEmit` after changing platform API types, routes, stores, or views.
+- Manually verify platform login and at least one platform CRUD page when a dev server is running.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+import api from '@/api/request'
+
+export const getPlatformTenants = () => api.get('/platform/tenants')
+```
+
+#### Correct
+```ts
+import { platformApi } from '@/api/request'
+
+export const getPlatformTenants = () => platformApi.get('/platform/tenants')
+```
+
+---
+
+## Scenario: Platform Tenant Permission Sync UI
+
+### 1. Scope / Trigger
+- Trigger: Platform operators synchronize the menu/button permission ceiling that is available inside a tenant.
+- Applies when changing `/platform/tenants`, `src/api/platform-saas.ts`, platform SaaS API types, or tenant role permission assignment UI.
+
+### 2. Signatures
+- Page: `src/views/platform/tenants/index.vue`.
+- API functions: `getPlatformTenantMenus(id)` and `updatePlatformTenantMenuGrants(id, { menuIds })`.
+- Backend endpoints: `GET /platform/tenants/:id/menus`, `PATCH /platform/tenants/:id/menus`.
+- Shared type: `Menu.isTenantGranted`.
+- Utility: `src/utils/tenant-menu-grants.ts`.
+- Platform permission: `platform:tenant:permissions`.
+
+### 3. Contracts
+- The platform tenant page must use `platformApi`; it must not attach tenant auth or `tenant_id`.
+- The permission action must be labeled as permission sync and hidden unless `usePlatformAuthStore().hasPermission('platform:tenant:permissions')`.
+- The tree drawer initializes checked keys from `Menu.isTenantGranted`, including nested button permissions.
+- The drawer footer primary action text is `同步`.
+- Sync sends `{ menuIds: number[] }` to the platform API and refreshes checked keys from the response because the backend may add ancestor IDs.
+- After a successful sync, show what the system did: updated tenant available menus, added required parent menus, and removed revoked menu permissions from tenant roles.
+- Tenant role permission assignment must source menu options from tenant `GET /menus`, which is already filtered by the backend ceiling.
+
+### 4. Validation & Error Matrix
+- Platform user lacks `platform:tenant:permissions` -> hide the grant action.
+- Fetch grant tree fails -> keep the drawer open and show the API error message.
+- Sync fails because IDs are invalid or revoked concurrently -> keep the drawer open and show the API error message.
+- Backend returns ancestor-expanded grants -> update local checked keys from the returned menu tree.
+
+### 5. Good/Base/Bad Cases
+- Good: `collectGrantedMenuIds(menus)` derives checked keys from backend state instead of duplicating recursive logic in the page.
+- Base: button nodes show their permission code in the tree label.
+- Bad: reusing `getMenus()` in the platform tenant page, which would use tenant auth and hide revoked menus.
+
+### 6. Tests Required
+- Run `pnpm test:tenant-menu-grants` after changing tree checked-key derivation or label formatting.
+- Run `pnpm exec vue-tsc --noEmit` after changing platform tenant page, API types, or menu types.
+- Manually verify the `/platform/tenants` permission drawer when a dev server and backend are available.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+const menus = await getMenus()
+selectedMenuIds.value = menus.map((menu) => menu.id)
+```
+
+#### Correct
+```ts
+const menus = await getPlatformTenantMenus(tenantId)
+selectedMenuIds.value = collectGrantedMenuIds(menus)
+```
+
+---
+
+## Scenario: Platform Menu Management Page
+
+### 1. Scope / Trigger
+- Trigger: Platform operators manage the system-wide menu/button capability catalog from the platform console.
+- Applies when changing `/platform/menus`, `MenuManager.vue`, `src/api/platform-saas.ts`, platform menu permissions, or tenant menu CRUD UI reuse.
+
+### 2. Signatures
+- Page: `src/views/platform/menus/index.vue`.
+- Shared component: `src/components/common/MenuManager.vue`.
+- Tenant page wrapper: `src/views/system/menus/index.vue`.
+- API functions: `getPlatformMenus(format?)`, `createPlatformMenu(menu)`, `updatePlatformMenu(id, menu)`, `deletePlatformMenu(id)`, `batchDeletePlatformMenus(ids)`.
+- Platform route: `/platform/menus` with `meta.permission = "platform:menu:view"`.
+- Platform permissions: `platform:menu:view`, `platform:menu:create`, `platform:menu:update`, `platform:menu:delete`, `platform:menu:export`, `platform:menu:batch-delete`.
+
+### 3. Contracts
+- `MenuManager.vue` owns the reusable menu table, form, icon picker, export, batch delete, and parent tree behavior.
+- Tenant `/system/menus` must pass tenant API functions and `useAuthStore().hasPermission`.
+- Platform `/platform/menus` must pass platform API functions and `usePlatformAuthStore().hasPermission`.
+- Platform menu creation must not include `tenantId`; the backend stores the system catalog in its own platform-managed context.
+- Platform menu management belongs under platform `系统管理`, while tenant lifecycle, plans, and subscriptions remain under `租户运营`.
+- `PageTableCard` permission checks can be overridden with `permissionChecker` when a page uses platform permissions instead of tenant permissions.
+- Platform menu APIs must use `platformApi`; they must not attach tenant auth or `tenant_id`.
+
+### 4. Validation & Error Matrix
+- Platform user lacks `platform:menu:view` -> route guard blocks `/platform/menus`.
+- Platform menu page shows a tenant selector -> remove it; tenant selection belongs to tenant permission sync, not system menu management.
+- Platform menu API returns validation errors -> `MenuManager.vue` shows the unwrapped request message.
+- Tenant page uses platform API or platform page uses tenant API -> wrong auth boundary; fix the wrapper API bindings.
+
+### 5. Good/Base/Bad Cases
+- Good: `MenuManager.vue` is reused by both `/system/menus` and `/platform/menus` with different API bindings.
+- Base: platform page opens the global system menu catalog directly without a tenant selector.
+- Bad: placing platform `菜单管理` under `租户运营`, which implies it manages per-tenant menu definitions.
+- Bad: copy-pasting the whole tenant menu page into `views/platform/menus` and changing URLs by string replacement.
+
+### 6. Tests Required
+- Run `pnpm exec vue-tsc --noEmit` after changing `MenuManager.vue`, page wrappers, platform API types, or routes.
+- Run `pnpm test:platform-navigation` after changing platform menu navigation.
+- Manually verify `/platform/menus` with a platform token when a dev server is available.
+
+### 7. Wrong vs Correct
+#### Wrong
+```ts
+import { getMenus } from '@/api/menu'
+```
+
+#### Correct
+```ts
+import { getPlatformMenus } from '@/api/platform-saas'
+```
+
+---
+
+## Scenario: Platform Subscription Date Range Inputs
+
+### 1. Scope / Trigger
+- Trigger: Platform pages display tenant subscription dates.
+- Applies when changing `/platform/tenants`, `/platform/subscriptions`, `src/utils/platform-date-range.ts`, SaaS API DTO types, or backend subscription date fields.
+
+### 2. Signatures
+- Component: `src/components/common/DateRangePickerWithSummary.vue`, which wraps Naive UI `n-date-picker` with `type="daterange"` and the selected-duration summary.
+- Utility: `normalizeDateRange(...)`, `formatDateRangeSummary(...)`, `getDateRangeStartIso(...)`, `getDateRangeEndIso(...)`, `dateToEndOfDayIso(...)`.
+- API fields: `startsAt: string`, `expiresAt?: string | null`, and `SaasPlan.durationDays`.
+
+### 3. Contracts
+- Platform subscription management is list-only except for the explicit `取消订阅` action.
+- The subscription range displays the backend-generated `startsAt` and `expiresAt` as date-only values, followed by a compact duration summary such as `（365 天，1 年 5 天）`. Those dates are created from the tenant creation time and selected plan `durationDays`.
+- Trial periods should be represented by creating a short-duration plan, not by a separate trial-days field.
+
+### 4. Validation & Error Matrix
+- Active subscription -> show `有效` and expose `取消订阅` when the operator has `platform:subscription:update`.
+- Expired subscription -> show `已过期` based on backend status, hide cancellation.
+- Canceled subscription -> show `已取消`, hide cancellation.
+
+### 5. Good/Base/Bad Cases
+- Good: a 30-day plan created on 2026-01-01 displays a date-only range ending 30 days later and appends `（30 天，1 个月）`.
+- Base: subscription rows show tenant, plan, status, generated range, and plan limits.
+- Bad: adding a subscription edit drawer or remark field to subscription management.
+
+### 6. Tests Required
+- Run `pnpm exec vue-tsc --noEmit` after changing platform date inputs or API types.
+- Backend subscription tests must assert status derivation and cancellation behavior.
+
+### 7. Wrong vs Correct
+#### Wrong
+```vue
+<n-input v-model:value="form.expiresAt" placeholder="ISO 时间" />
+```
+
+#### Correct
+```vue
+<n-data-table :columns="columns" :data="subscriptions" />
+```
+
+---
+
+## Scenario: Platform Plan and Subscription Relationship UI
+
+### 1. Scope / Trigger
+- Trigger: Platform operators manage SaaS plans and view tenant subscriptions that point at those plans.
+- Applies when changing `/platform/plans`, `/platform/subscriptions`, SaaS plan DTO types, or plan/subscription table/form copy.
+
+### 2. Signatures
+- Page: `src/views/platform/plans/index.vue`.
+- Page: `src/views/platform/subscriptions/index.vue`.
+- API fields: `SaasPlan.code`, `priceCents`, `userLimit`, `storageLimitMb`, `durationDays`, and `TenantSubscription.planId`.
+- Backend create contract: `CreateSaasPlanDto.code?: string`; omitted codes are generated by the backend.
+
+### 3. Contracts
+- Plan create/edit UI must not require operators to type `code`; the backend generates plan codes and the table may display them read-only.
+- Price inputs are shown in yuan with two decimal places, then converted to integer cents before submission.
+- The plan `durationDays` value is the subscription duration used when creating a tenant subscription.
+- Subscriptions are not edited directly. To use a different trial or duration, create/select an appropriate plan when creating the tenant.
+- User and storage limits come from the selected subscription plan.
+
+### 4. Validation & Error Matrix
+- Plan create payload omits `code` -> backend generates the code.
+- Price has yuan decimals -> frontend rounds to cents before API submission.
+- Selected tenant-creation plan is disabled -> keep the select option disabled.
+- Subscription cancellation -> tenant access becomes unavailable through the canceled subscription status.
+
+### 5. Good/Base/Bad Cases
+- Good: entering `99.99` yuan submits `priceCents: 9999`.
+- Good: a 7-day trial is modeled as a 7-day plan.
+- Base: existing plans still display their generated/read-only code in the list.
+- Bad: showing raw "功能开关 JSON" without an enforcement feature that uses it.
+- Bad: asking operators to choose both a billing cycle and a duration field when only `durationDays` affects internal subscription defaults.
+
+### 6. Tests Required
+- Run `pnpm exec vue-tsc --noEmit` after changing plan/subscription pages or SaaS API types.
+- Backend plan service tests must cover generated plan codes when `code` is omitted.
+- Manually verify plan create/edit price conversion and subscription plan-preview copy when a dev server is running.
+
+### 7. Wrong vs Correct
+#### Wrong
+```vue
+<n-form-item label="套餐编码" path="code">
+  <n-input v-model:value="form.code" />
+</n-form-item>
+```
+
+#### Correct
+```ts
+const payload = {
+  name: form.name,
+  priceCents: Math.round((form.priceYuan ?? 0) * 100),
+}
+```
+
+---
+
 ## Scenario: Menu, Route, Title, and Breadcrumb Consistency
 
 ### 1. Scope / Trigger
@@ -227,6 +494,8 @@ When adding a test framework later, start with:
 - Table export handlers should call `exportExcel(...)` from `utils/export.ts` and download `.xlsx` workbooks.
 - Footer pagination should use `PagePagination`; page files still own `page`, `pageSize`, total count, and request timing.
 - `PageTableCard` standardizes where `TableColumnSettings` appears; page files still own the actual `n-data-table`, pagination, data loading, and row actions.
+- Admin list tables should include a `序号` column via `createIndexColumn(...)` and should not show raw `ID` columns unless that ID is an explicit business field. Menu-management tree tables are exempt from the sequence-column requirement.
+- Table headers should be left-aligned consistently; body cells may still use centered alignment where it improves scanning.
 
 ### 4. Validation & Error Matrix
 - New page has top action buttons mixed into `QueryForm` -> move them to `PageToolbar`.
@@ -235,9 +504,10 @@ When adding a test framework later, start with:
 - New page duplicates raw `n-pagination` footer markup -> move it into `PagePagination`.
 - New page places export or batch-delete buttons outside `PageTableCard` -> move the shared actions into `PageTableCard` props/events and keep page-specific logic in handlers.
 - New page has no search area -> `PageToolbar` + `PageTableCard` is still the preferred base structure.
+- New page shows `{ title: 'ID', key: 'id' }` as a default list column -> replace it with `createIndexColumn(...)`, unless it is a menu-management tree table.
 
 ### 5. Good/Base/Bad Cases
-- Good: a generated `/system/brands` page uses `PageSearchCard + QueryForm` at the top for filters, `PageToolbar` below it for "新增品牌", `PageTableCard` for the table shell, and `PagePagination` in the footer.
+- Good: a generated `/system/brands` page uses `PageSearchCard + QueryForm` at the top for filters, `PageToolbar` below it for "新增品牌", `PageTableCard` for the table shell, a `序号` column, and `PagePagination` in the footer.
 - Base: a page without filters may omit `QueryForm` but should still prefer `PageToolbar` and `PageTableCard`.
 - Bad: a new page duplicates `n-card` toolbar/table wrappers and manually places `TableColumnSettings` beside action buttons.
 

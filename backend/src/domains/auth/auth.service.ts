@@ -7,6 +7,7 @@ import { CryptoKeysService } from './services/crypto-keys.service';
 import { LoginThrottleService } from './services/login-throttle.service';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { RedisService } from '@/infrastructure/redis/redis.service';
+import { TenantAccessService } from '@/domains/saas/tenant-access.service';
 import { LoginLogType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -24,9 +25,11 @@ export class AuthService {
     private readonly loginThrottle: LoginThrottleService,
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly tenantAccess: TenantAccessService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
+    await this.tenantAccess.assertTenantUsable(this.prisma.requireTenantId());
     const user = await this.usersService.create(createUserDto);
     const userWithRoles = await this.usersService.findById(user.id);
     return { user: userWithRoles, ...(await this.generateAuthTokens(user.id)) };
@@ -37,6 +40,7 @@ export class AuthService {
 
     // ① 锁定校验：超过失败阈值则直接拒绝
     await this.loginThrottle.assertNotLocked(username, ip);
+    await this.tenantAccess.assertTenantUsable(this.prisma.requireTenantId());
 
     // ② RSA 解密前端密文 → 明文密码
     const plainPassword = this.cryptoKeys.decryptLoginPayload(loginDto.password);
@@ -151,6 +155,7 @@ export class AuthService {
 
     try {
       payload = await this.verifyRefreshToken(refreshToken);
+      await this.tenantAccess.assertTenantUsable(payload.tenantId);
     } catch {
       await this.prisma.loginLog.create({
         data: this.prisma.withTenantData({

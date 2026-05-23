@@ -1,7 +1,7 @@
 import { computed, defineComponent, h, useAttrs, useSlots } from 'vue'
 import { NDataTable as NaiveDataTable } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
-import { getTableScrollX } from '@/utils/table'
+import { getTableScrollX, normalizeTableHeaderAlign } from '@/utils/table'
 
 export default defineComponent({
   name: 'AppDataTable',
@@ -18,6 +18,10 @@ export default defineComponent({
 
       if (scrollX == null && Array.isArray(columns) && columns.length > 0) {
         props.scrollX = getTableScrollX(columns)
+      }
+
+      if (Array.isArray(columns) && columns.length > 0) {
+        props.columns = normalizeTableHeaderAlign(columns)
       }
 
       props.class = ['app-data-table', className]

@@ -66,6 +66,7 @@ const props = withDefaults(defineProps<{
   columnSettingValue?: string[]
   exportPermission?: string | string[]
   batchDeletePermission?: string | string[]
+  permissionChecker?: (permission?: string | string[]) => boolean
   exportLoading?: boolean
   batchDeleteLoading?: boolean
   selectedCount?: number
@@ -74,6 +75,7 @@ const props = withDefaults(defineProps<{
   columnSettingValue: () => [],
   exportPermission: undefined,
   batchDeletePermission: undefined,
+  permissionChecker: undefined,
   exportLoading: false,
   batchDeleteLoading: false,
   selectedCount: 0,
@@ -88,11 +90,16 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore()
 const hasColumnSettings = computed(() => props.columnSettingOptions.length > 0)
+const hasPermission = (permission?: string | string[]) => {
+  return props.permissionChecker
+    ? props.permissionChecker(permission)
+    : authStore.hasPermission(permission)
+}
 const canExport = computed(() => (
-  Boolean(props.exportPermission) && authStore.hasPermission(props.exportPermission)
+  Boolean(props.exportPermission) && hasPermission(props.exportPermission)
 ))
 const canBatchDelete = computed(() => (
-  Boolean(props.batchDeletePermission) && authStore.hasPermission(props.batchDeletePermission)
+  Boolean(props.batchDeletePermission) && hasPermission(props.batchDeletePermission)
 ))
 const hasBuiltInActions = computed(() => canExport.value || canBatchDelete.value)
 

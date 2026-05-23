@@ -109,6 +109,7 @@ import PageSearchCard from '@/components/common/PageSearchCard.vue';
 import PageTableCard from '@/components/common/PageTableCard.vue';
 import QueryForm from '@/components/common/QueryForm.vue';
 import { getOperationLogs, getLoginLogs, type OperationLog, type LoginLog } from '@/api/system-logs';
+import { createIndexColumn } from '@/utils/table';
 
 const dialog = useDialog();
 
@@ -155,7 +156,7 @@ const operationPagination = reactive({
 });
 
 const operationColumns: DataTableColumns<OperationLog> = [
-  { title: 'ID', key: 'id', width: 60 },
+  createIndexColumn<OperationLog>(() => (operationPagination.page - 1) * operationPagination.pageSize),
   { title: '用户', key: 'username', width: 120 },
   { title: '模块', key: 'module', width: 120 },
   { title: '方法', key: 'method', width: 90, render: row => row.method || '-' },
@@ -271,7 +272,7 @@ const loginPagination = reactive({
 });
 
 const loginColumns: DataTableColumns<LoginLog> = [
-  { title: 'ID', key: 'id', width: 60 },
+  createIndexColumn<LoginLog>(() => (loginPagination.page - 1) * loginPagination.pageSize),
   { title: '用户', key: 'username', width: 120 },
   {
     title: '类型',

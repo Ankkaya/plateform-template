@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
@@ -44,7 +44,7 @@ export class RolesService {
         },
         include: {
           menus: {
-            where: this.prisma.withTenantWhere({ deletedAt: null }),
+            where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
           },
         },
       });
@@ -59,7 +59,7 @@ export class RolesService {
       where: this.prisma.withTenantWhere({ deletedAt: null }),
       include: {
         menus: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
         },
         users: {
           where: { tenantId, deletedAt: null },
@@ -78,7 +78,7 @@ export class RolesService {
       where: this.prisma.withTenantWhere({ id, deletedAt: null }),
       include: {
         menus: {
-          where: { tenantId, deletedAt: null },
+          where: { tenantId, deletedAt: null, isTenantGranted: true },
         },
         users: {
           where: { tenantId, deletedAt: null },
@@ -127,7 +127,7 @@ export class RolesService {
       data: roleData,
       include: {
         menus: {
-          where: this.prisma.withTenantWhere({ deletedAt: null }),
+          where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
         },
       },
     });
@@ -142,7 +142,9 @@ export class RolesService {
           },
         },
         include: {
-          menus: true,
+          menus: {
+            where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
+          },
         },
       });
     }
@@ -199,7 +201,7 @@ export class RolesService {
       where: this.prisma.withTenantWhere({ code, deletedAt: null }),
       include: {
         menus: {
-          where: this.prisma.withTenantWhere({ deletedAt: null }),
+          where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
         },
       },
     });
@@ -216,7 +218,7 @@ export class RolesService {
           where: this.prisma.withTenantWhere({ deletedAt: null }),
           include: {
             menus: {
-              where: this.prisma.withTenantWhere({ deletedAt: null }),
+              where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
             },
           },
         },
@@ -233,10 +235,10 @@ export class RolesService {
       where: this.prisma.withTenantWhere({ id: roleId, deletedAt: null }),
       include: {
         menus: {
-          where: this.prisma.withTenantWhere({ deletedAt: null }),
+          where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
           include: {
             children: {
-              where: this.prisma.withTenantWhere({ deletedAt: null }),
+              where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
             },
           },
           orderBy: { order: 'asc' },
@@ -283,7 +285,7 @@ export class RolesService {
       },
       include: {
         menus: {
-          where: this.prisma.withTenantWhere({ deletedAt: null }),
+          where: this.prisma.withTenantWhere({ deletedAt: null, isTenantGranted: true }),
         },
       },
     });
@@ -335,15 +337,27 @@ export class RolesService {
       return;
     }
 
-    const count = await this.prisma.menu.count({
+    const existingCount = await this.prisma.menu.count({
       where: this.prisma.withTenantWhere({
         id: { in: uniqueIds },
         deletedAt: null,
       }),
     });
 
-    if (count !== uniqueIds.length) {
+    if (existingCount !== uniqueIds.length) {
       throw new NotFoundException('部分菜单不存在或已删除');
+    }
+
+    const grantedCount = await this.prisma.menu.count({
+      where: this.prisma.withTenantWhere({
+        id: { in: uniqueIds },
+        deletedAt: null,
+        isTenantGranted: true,
+      }),
+    });
+
+    if (grantedCount !== uniqueIds.length) {
+      throw new ForbiddenException('不能分配未同步到租户的菜单权限');
     }
   }
 }

@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from '../../users/users.service';
 import { RedisService } from '@/infrastructure/redis/redis.service';
 import { TenantContextService } from '@/common/tenant/tenant-context.service';
+import { TenantAccessService } from '@/domains/saas/tenant-access.service';
 
 type AuthRequest = {
   headers?: {
@@ -17,6 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private usersService: UsersService,
     private readonly redis: RedisService,
     private readonly tenantContext: TenantContextService,
+    private readonly tenantAccess: TenantAccessService,
   ) {
     super({
       passReqToCallback: true,
@@ -35,6 +37,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const tenantId = this.tenantContext.requireTenantId();
     if (!payload.tenantId || payload.tenantId !== tenantId) {
       throw new UnauthorizedException('访问令牌租户无效');
+    }
+
+    try {
+      await this.tenantAccess.assertTenantUsable(tenantId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '租户不可用';
+      throw new UnauthorizedException(message);
     }
 
     const isValid = await this.redis.validateToken(tenantId, payload.sub, token, 'access');

@@ -64,7 +64,7 @@ CRUD pages commonly use:
 - `PageTableCard` as the list shell; place `n-data-table` and optional pagination inside it
 - `PageTableCard` for shared table actions such as Excel export, batch delete, and column settings; the page still owns row selection and handlers
 - `PagePagination` for table footer pagination
-- `n-data-table` with `autoFitTableColumns`, `createActionColumn`, and `getTableScrollX`
+- `n-data-table` with `autoFitTableColumns`, `createIndexColumn`, `createActionColumn`, and `getTableScrollX`
 - `n-modal` for compact forms or `SmartFormContainer` for larger forms
 - `useMessage()` for user feedback
 - `useDialog()` for destructive confirmations
@@ -117,6 +117,14 @@ createActionColumn<User>({
 ```
 
 When rendering a dynamic `actions` array under strict TypeScript, type it as `VNode[]`.
+
+List pages should use a `序号` column from `createIndexColumn(...)` instead of exposing raw database `ID` columns, unless the field has explicit business meaning such as `用户ID`, `目标ID`, or `关联ID`. Menu-management tree tables are the exception and should not add a sequence column. For paginated tables, pass the current page offset:
+
+```ts
+createIndexColumn<User>(() => (pagination.page - 1) * pagination.pageSize)
+```
+
+Table headers should stay left-aligned. If a column body needs centered content, set `align: 'center'` while keeping the header default from `autoFitTableColumns(...)` / `createActionColumn(...)`.
 
 ---
 

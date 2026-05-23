@@ -680,7 +680,7 @@ import {
 import type { Create${config.className}Dto, ${config.className} } from '@/types/${config.domainName}'
 import { useAuthStore } from '@/store'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
-import { autoFitTableColumns, createActionColumn } from '@/utils/table'
+import { autoFitTableColumns, createActionColumn, createIndexColumn } from '@/utils/table'
 import { exportExcel } from '@/utils/export'
 
 const message = useMessage()
@@ -743,6 +743,7 @@ const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 
 const baseColumns = autoFitTableColumns<${config.className}>([
   { type: 'selection', width: 48, fixed: 'left' },
+  createIndexColumn<${config.className}>(() => (pagination.page - 1) * pagination.pageSize),
   { title: '名称', key: 'name' },
   {
     title: '状态',

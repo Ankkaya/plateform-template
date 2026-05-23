@@ -33,7 +33,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.client) {
+    if (this.client?.isOpen) {
       await this.client.disconnect();
     }
   }
@@ -162,7 +162,51 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return Number(await this.client.ttl(key));
   }
 
+  async setPlatformToken(
+    userId: number,
+    token: string,
+    ttl: number = 3600,
+    type: TokenType = 'access',
+  ): Promise<void> {
+    try {
+      await this.client.set(this.buildPlatformTokenKey(userId, type), token, { EX: ttl });
+    } catch (error) {
+      console.error('Redis setPlatformToken error:', error);
+      throw error;
+    }
+  }
+
+  async validatePlatformToken(
+    userId: number,
+    token: string,
+    type: TokenType = 'access',
+  ): Promise<boolean> {
+    try {
+      const cachedToken = await this.client.get(this.buildPlatformTokenKey(userId, type));
+      return cachedToken === token;
+    } catch (error) {
+      console.error('Redis validatePlatformToken error:', error);
+      return false;
+    }
+  }
+
+  async deletePlatformUserTokens(userId: number): Promise<void> {
+    try {
+      await this.client.del([
+        this.buildPlatformTokenKey(userId, 'access'),
+        this.buildPlatformTokenKey(userId, 'refresh'),
+      ]);
+    } catch (error) {
+      console.error('Redis deletePlatformUserTokens error:', error);
+      throw error;
+    }
+  }
+
   private buildTokenKey(tenantId: number, userId: number, type: TokenType): string {
     return `token:${type}:${tenantId}:${userId}`;
+  }
+
+  private buildPlatformTokenKey(userId: number, type: TokenType): string {
+    return `platform:token:${type}:${userId}`;
   }
 }

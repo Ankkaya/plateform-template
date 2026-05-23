@@ -66,6 +66,8 @@ test('getModuleFiles returns backend and frontend skeleton files without touchin
   assert.match(page, /<PageTableCard/);
   assert.match(page, /<PagePagination/);
   assert.match(page, /useTableColumnSettings/);
+  assert.match(page, /createIndexColumn/);
+  assert.doesNotMatch(page, /title: 'ID', key: 'id'/);
   assert.ok(page.indexOf('<PageSearchCard>') < page.indexOf('<PageToolbar>'));
 });
 

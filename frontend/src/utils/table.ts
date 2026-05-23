@@ -21,7 +21,19 @@ export function createActionColumn<T>(
   return {
     ...column,
     fixed: column.fixed ?? 'right',
+    titleAlign: column.titleAlign ?? 'left',
     width: getActionColumnWidth(buttonCount, extraWidth),
+  }
+}
+
+export function createIndexColumn<T>(getStartIndex: () => number = () => 0): DataTableBaseColumn<T> {
+  return {
+    title: '序号',
+    key: '__index',
+    width: 70,
+    titleAlign: 'left',
+    align: 'center',
+    render: (_row, index) => getStartIndex() + index + 1,
   }
 }
 
@@ -57,11 +69,39 @@ export function autoFitTableColumns<T>(columns: DataTableColumns<T>): DataTableC
       maxWidth?: number
     }
 
+    nextColumn.titleAlign = nextColumn.titleAlign ?? 'left'
     delete nextColumn.width
     delete nextColumn.minWidth
     delete nextColumn.maxWidth
 
     return nextColumn
+  })
+}
+
+export function normalizeTableHeaderAlign<T>(columns: DataTableColumns<T>): DataTableColumns<T> {
+  return columns.map((column) => {
+    const currentColumn = column as {
+      type?: unknown
+      children?: DataTableColumns<T>
+      title?: unknown
+    }
+
+    if (Array.isArray(currentColumn.children)) {
+      return {
+        ...column,
+        titleAlign: 'left',
+        children: normalizeTableHeaderAlign(currentColumn.children),
+      } as TableColumn<T>
+    }
+
+    if ('type' in currentColumn) {
+      return column
+    }
+
+    return {
+      ...column,
+      titleAlign: 'left',
+    } as TableColumn<T>
   })
 }
 

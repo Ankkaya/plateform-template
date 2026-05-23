@@ -27,6 +27,25 @@
       </template>
     </n-modal>
 
+    <n-modal
+      v-model:show="tenantDialogVisible"
+      title="切换租户"
+      preset="card"
+      style="width: 420px"
+    >
+      <n-form :model="tenantForm" label-placement="top">
+        <n-form-item label="租户 ID">
+          <n-input v-model:value="tenantForm.tenantId" placeholder="请输入租户 ID" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="tenantDialogVisible = false">取消</n-button>
+          <n-button type="primary" @click="handleTenantSwitch">确定</n-button>
+        </n-space>
+      </template>
+    </n-modal>
+
     <!-- 左侧菜单 -->
     <aside
       class="layout-sidebar shrink-0 flex flex-col overflow-hidden bg-container shadow-sider transition-theme"
@@ -136,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store'
 import { useThemeStore } from '@/store/modules/theme'
@@ -156,6 +175,7 @@ import type { Menu } from '@/types'
 import { APP_TITLE } from '@/constants/app'
 import { localStg } from '@/utils/storage'
 import { resolveFileUrl } from '@/utils/file-url'
+import { getTenantId, normalizeTenantId, setTenantId } from '@/utils/tenant'
 
 interface BreadcrumbItem {
   title: string
@@ -174,6 +194,10 @@ const sidebarCollapsedWidth = 64
 const sidebarExpandedWidth = 208
 const sidebarCollapsed = ref(localStg.get<boolean>('layoutSidebarCollapsed') ?? false)
 const profileDialogVisible = ref(false)
+const tenantDialogVisible = ref(false)
+const tenantForm = reactive({
+  tenantId: getTenantId(),
+})
 const sidebarWidth = computed(() => (
   sidebarCollapsed.value ? sidebarCollapsedWidth : sidebarExpandedWidth
 ))
@@ -282,6 +306,7 @@ const menuOptions = computed<MenuOption[]>(() => {
 // 下拉选项
 const dropdownOptions = [
   { label: '个人信息', key: 'profile' },
+  { label: '切换租户', key: 'tenant' },
   { label: '退出登录', key: 'logout' }
 ]
 
@@ -328,10 +353,32 @@ const handleSelect = (key: string) => {
     case 'profile':
       profileDialogVisible.value = true
       break
+    case 'tenant':
+      tenantForm.tenantId = getTenantId()
+      tenantDialogVisible.value = true
+      break
     case 'logout':
       authStore.logout()
       break
   }
+}
+
+const handleTenantSwitch = () => {
+  const tenantId = normalizeTenantId(tenantForm.tenantId)
+  if (!tenantId) {
+    message.error('租户 ID 必须是正整数')
+    return
+  }
+
+  if (tenantId === getTenantId()) {
+    tenantDialogVisible.value = false
+    return
+  }
+
+  setTenantId(tenantId)
+  tenantDialogVisible.value = false
+  message.success('租户已切换，请重新登录')
+  authStore.logout()
 }
 
 const toggleSidebarCollapsed = () => {

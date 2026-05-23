@@ -10,6 +10,8 @@ import { SystemLogsModule } from './domains/system-logs/system-logs.module';
 import { SystemSettingsModule } from './domains/system-settings/system-settings.module';
 import { UploadRecordsModule } from './domains/upload-records/upload-records.module';
 import { UsersModule } from './domains/users/users.module';
+import { PlatformAuthModule } from './domains/platform-auth/platform-auth.module';
+import { SaasModule } from './domains/saas/saas.module';
 import { IconAssetsModule } from './infrastructure/icon-assets/icon-assets.module';
 import { MinioModule } from './infrastructure/minio/minio.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
@@ -25,6 +27,8 @@ import { AppController } from './app.controller';
     MinioModule,
     IconAssetsModule,
     AuthModule,
+    PlatformAuthModule,
+    SaasModule,
     DictionariesModule,
     UsersModule,
     RolesModule,

@@ -1,6 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/store'
+import { useAuthStore, usePlatformAuthStore } from '@/store'
 import { APP_TITLE } from '@/constants/app'
+
+const PLATFORM_HOME_CANDIDATES = [
+  { path: '/platform/tenants', permission: 'platform:tenant:view' },
+  { path: '/platform/menus', permission: 'platform:menu:view' },
+  { path: '/platform/plans', permission: 'platform:plan:view' },
+  { path: '/platform/subscriptions', permission: 'platform:subscription:view' },
+]
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,6 +17,12 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/views/login/index.vue'),
       meta: { public: true }
+    },
+    {
+      path: '/platform/login',
+      name: 'platform-login',
+      component: () => import('@/views/platform/login/index.vue'),
+      meta: { platformPublic: true, title: '平台登录' }
     },
     {
       path: '/',
@@ -87,6 +100,38 @@ const router = createRouter({
       ]
     },
     {
+      path: '/platform',
+      component: () => import('@/views/platform/layout/index.vue'),
+      redirect: '/platform/tenants',
+      meta: { platform: true, title: '平台控制台' },
+      children: [
+        {
+          path: 'tenants',
+          name: 'platform-tenants',
+          component: () => import('@/views/platform/tenants/index.vue'),
+          meta: { platform: true, title: '租户管理', permission: 'platform:tenant:view' }
+        },
+        {
+          path: 'menus',
+          name: 'platform-menus',
+          component: () => import('@/views/platform/menus/index.vue'),
+          meta: { platform: true, title: '菜单管理', permission: 'platform:menu:view' }
+        },
+        {
+          path: 'plans',
+          name: 'platform-plans',
+          component: () => import('@/views/platform/plans/index.vue'),
+          meta: { platform: true, title: '套餐管理', permission: 'platform:plan:view' }
+        },
+        {
+          path: 'subscriptions',
+          name: 'platform-subscriptions',
+          component: () => import('@/views/platform/subscriptions/index.vue'),
+          meta: { platform: true, title: '订阅管理', permission: 'platform:subscription:view' }
+        }
+      ]
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/dashboard'
     }
@@ -96,8 +141,44 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
+  const platformAuthStore = usePlatformAuthStore()
+
+  if (to.meta.platformPublic) {
+    next()
+    return
+  }
 
   if (to.meta.public) {
+    next()
+    return
+  }
+
+  if (to.meta.platform) {
+    if (!platformAuthStore.isLoggedIn) {
+      next({ name: 'platform-login', query: { redirect: to.fullPath } })
+      return
+    }
+
+    if (!platformAuthStore.user) {
+      try {
+        await platformAuthStore.init()
+      } catch {
+        next({ name: 'platform-login' })
+        return
+      }
+    }
+
+    const permission = to.meta.permission as string | string[] | undefined
+    if (!platformAuthStore.hasPermission(permission)) {
+      const fallback = PLATFORM_HOME_CANDIDATES.find(item => platformAuthStore.hasPermission(item.permission))
+      if (fallback && fallback.path !== to.path) {
+        next({ path: fallback.path })
+        return
+      }
+      next(false)
+      return
+    }
+
     next()
     return
   }

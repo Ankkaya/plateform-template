@@ -1,0 +1,2 @@
+ALTER TABLE "SaasPlan" DROP COLUMN IF EXISTS "billingCycle";
+ALTER TABLE "SaasPlan" DROP COLUMN IF EXISTS "featureFlags";

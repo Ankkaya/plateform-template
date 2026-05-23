@@ -63,30 +63,26 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 function Invoke-Compose {
-  param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $ComposeArgs)
-
   if ($script:ComposeMode -eq "plugin") {
-    & docker compose @ComposeArgs
+    & docker compose @args
   } else {
-    & docker-compose @ComposeArgs
+    & docker-compose @args
   }
 
   if ($LASTEXITCODE -ne 0) {
-    Fail "docker compose command failed: $($ComposeArgs -join ' ')"
+    Fail "docker compose command failed: $($args -join ' ')"
   }
 }
 
 function Get-ComposeOutput {
-  param([Parameter(ValueFromRemainingArguments = $true)] [string[]] $ComposeArgs)
-
   $output = if ($script:ComposeMode -eq "plugin") {
-    & docker compose @ComposeArgs
+    & docker compose @args
   } else {
-    & docker-compose @ComposeArgs
+    & docker-compose @args
   }
 
   if ($LASTEXITCODE -ne 0) {
-    Fail "docker compose command failed: $($ComposeArgs -join ' ')"
+    Fail "docker compose command failed: $($args -join ' ')"
   }
 
   return $output

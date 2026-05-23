@@ -34,6 +34,9 @@ export class MenuVo {
   @ApiProperty({ description: '是否隐藏' })
   hidden: boolean;
 
+  @ApiProperty({ description: '是否已从平台同步到当前租户' })
+  isTenantGranted: boolean;
+
   @ApiProperty({ description: '类型' })
   type: string;
 
@@ -53,6 +56,7 @@ export class MenuVo {
       parentId: entity.parentId,
       order: entity.order,
       hidden: entity.hidden,
+      isTenantGranted: entity.isTenantGranted ?? true,
       type: entity.type,
     };
 

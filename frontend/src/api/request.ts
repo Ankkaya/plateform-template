@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosInstance, InternalAxiosRequestConfig, AxiosRequestConfig } from 'axios'
+import type { AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import type { ApiResponse, AuthResponse } from '@/types/api/index.ts'
 import {
   clearAuthTokens,
@@ -9,6 +9,7 @@ import {
   shouldRefreshAccessToken,
 } from '@/utils/auth-refresh'
 import { getTenantId } from '@/utils/tenant'
+import { clearPlatformAuthToken, getPlatformAuthToken } from '@/utils/platform-auth'
 
 // ==================== 自定义 Axios 实例类型 ====================
 /**
@@ -45,6 +46,14 @@ const refreshInstance: AxiosInstance = axios.create({
   }
 })
 
+const platformInstance: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
 interface RetriableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
 }
@@ -63,6 +72,53 @@ function redirectToLogin() {
   clearAuthTokens()
   if (typeof window !== 'undefined') {
     window.location.href = '/login'
+  }
+}
+
+function redirectToPlatformLogin() {
+  clearPlatformAuthToken()
+  if (typeof window !== 'undefined') {
+    window.location.href = '/platform/login'
+  }
+}
+
+function unwrapApiData(responseData: unknown) {
+  const data = responseData as ApiResponse<unknown>
+
+  if (data && typeof data === 'object' && 'data' in data) {
+    return data.data
+  }
+
+  return data
+}
+
+function getResponseMessage(data: unknown) {
+  if (data && typeof data === 'object' && 'message' in data) {
+    const message = (data as { message?: unknown }).message
+    return typeof message === 'string' ? message : ''
+  }
+
+  return ''
+}
+
+function getHttpErrorMessage(error: unknown) {
+  const response = (error as { response?: { status?: number; data?: unknown } }).response
+  if (!response) {
+    return '网络连接异常'
+  }
+
+  const responseMessage = getResponseMessage(response.data)
+  switch (response.status) {
+    case 401:
+      return responseMessage || '登录已过期'
+    case 403:
+      return responseMessage || '没有权限'
+    case 404:
+      return responseMessage || '请求的资源不存在'
+    case 500:
+      return responseMessage || '服务器错误'
+    default:
+      return responseMessage || '请求失败'
   }
 }
 
@@ -116,22 +172,26 @@ refreshInstance.interceptors.request.use(
   }
 )
 
+platformInstance.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = getPlatformAuthToken()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
 // ==================== 响应拦截器 ====================
 instance.interceptors.response.use(
   (response): any => {
-    const data = response.data as ApiResponse<unknown>
-
-    // 标准格式 { code, message, data }，直接解包 data
-    if (data && typeof data === 'object' && 'data' in data) {
-      return data.data
-    }
-
-    // 非标准格式，直接返回原始数据（兼容旧接口）
-    return data
+    return unwrapApiData(response.data)
   },
   async (error) => {
     const { response, config } = error
-    let errorMessage = '请求失败'
     const requestConfig = config as RetriableRequestConfig | undefined
     const refreshToken = getRefreshToken()
 
@@ -157,34 +217,30 @@ instance.interceptors.response.use(
       }
     }
     
-    // 处理HTTP错误
-    if (response) {
-      // 优先按 HTTP 状态码处理（特别是 401 需要触发跳转）
-      switch (response.status) {
-        case 401:
-          redirectToLogin()
-          errorMessage = response.data?.message || '登录已过期'
-          break
-        case 403:
-          errorMessage = response.data?.message || '没有权限'
-          break
-        case 404:
-          errorMessage = response.data?.message || '请求的资源不存在'
-          break
-        case 500:
-          errorMessage = response.data?.message || '服务器错误'
-          break
-        default:
-          errorMessage = response.data?.message || '请求失败'
-      }
-    } else {
-      errorMessage = '网络连接异常'
+    if (response?.status === 401) {
+      redirectToLogin()
     }
     
-    return Promise.reject({ message: errorMessage, originalError: error })
+    return Promise.reject({ message: getHttpErrorMessage(error), originalError: error })
+  }
+)
+
+platformInstance.interceptors.response.use(
+  (response): any => {
+    return unwrapApiData(response.data)
+  },
+  (error) => {
+    const response = (error as { response?: { status?: number } }).response
+    if (response?.status === 401) {
+      redirectToPlatformLogin()
+    }
+
+    return Promise.reject({ message: getHttpErrorMessage(error), originalError: error })
   }
 )
 
 // ==================== 导出带类型的 API 客户端 ====================
-const api = instance as unknown as ApiClient
+export const tenantApi = instance as unknown as ApiClient
+export const platformApi = platformInstance as unknown as ApiClient
+const api = tenantApi
 export default api

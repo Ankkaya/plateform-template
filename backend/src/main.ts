@@ -11,6 +11,8 @@ import { SystemLogsModule } from './domains/system-logs/system-logs.module';
 import { SystemSettingsModule } from './domains/system-settings/system-settings.module';
 import { UploadRecordsModule } from './domains/upload-records/upload-records.module';
 import { UsersModule } from './domains/users/users.module';
+import { PlatformAuthModule } from './domains/platform-auth/platform-auth.module';
+import { SaasModule } from './domains/saas/saas.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -123,6 +125,8 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config, {
       include: [
         AuthModule,
+        PlatformAuthModule,
+        SaasModule,
         DictionariesModule,
         UsersModule,
         RolesModule,

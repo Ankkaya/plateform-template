@@ -28,6 +28,30 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const tenantId = this.prisma.requireTenantId();
+    const grantedMenus = await this.prisma.menu.findMany({
+      where: this.prisma.withTenantWhere({
+        deletedAt: null,
+        isTenantGranted: true,
+      }),
+      select: {
+        path: true,
+        permission: true,
+      },
+    });
+    const grantedPermissions = new Set<string>();
+    for (const menu of grantedMenus) {
+      if (menu.permission) {
+        grantedPermissions.add(menu.permission);
+      }
+      if (menu.path) {
+        grantedPermissions.add(menu.path);
+      }
+    }
+
+    if (!requiredPermissions.every((permission) => grantedPermissions.has(permission))) {
+      throw new ForbiddenException('当前租户未开通该权限');
+    }
+
     const user = await this.prisma.user.findFirst({
       where: this.prisma.withTenantWhere({ id: userId, deletedAt: null }),
       include: {
@@ -35,7 +59,7 @@ export class PermissionsGuard implements CanActivate {
           where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
               select: {
                 path: true,
                 permission: true,
@@ -51,6 +75,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     if (user.roles.some((role) => role.code === 'admin')) {
+      request.user.permissions = Array.from(grantedPermissions);
       return true;
     }
 

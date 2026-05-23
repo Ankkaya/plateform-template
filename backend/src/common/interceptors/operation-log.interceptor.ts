@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
-import { LogAction } from '@prisma/client';
+import { LogAction, PlatformOperationAction } from '@prisma/client';
 
 @Injectable()
 export class OperationLogInterceptor implements NestInterceptor {
@@ -52,6 +52,20 @@ export class OperationLogInterceptor implements NestInterceptor {
     const sanitizedBody = this.sanitizeBody(request.body);
 
     try {
+      if (this.isPlatformPath(path)) {
+        await this.writePlatformLog({
+          request,
+          action: this.inferPlatformAction(method),
+          module: this.inferPlatformModule(path),
+          targetId: request.params?.id?.toString(),
+          description: `${method} ${path}`,
+          requestBody: this.stringifyForLog(sanitizedBody),
+          success: !error,
+          error: error ? this.stringifyForLog(this.normalizeError(error)) : undefined,
+        });
+        return;
+      }
+
       await this.prisma.operationLog.create({
         data: this.prisma.withTenantData({
           userId: user?.userId,
@@ -80,6 +94,32 @@ export class OperationLogInterceptor implements NestInterceptor {
     }
   }
 
+  private async writePlatformLog(input: {
+    request: any;
+    action: PlatformOperationAction;
+    module: string;
+    targetId?: string;
+    description: string;
+    requestBody?: string;
+    success: boolean;
+    error?: string;
+  }): Promise<void> {
+    const user = input.request.user;
+    await this.prisma.platformOperationLog.create({
+      data: {
+        platformUserId: user?.userId,
+        username: user?.username,
+        action: input.action,
+        module: input.module,
+        targetId: input.targetId,
+        description: input.description,
+        requestBody: input.requestBody,
+        success: input.success,
+        error: input.error,
+      },
+    });
+  }
+
   private inferAction(method: string): LogAction {
     switch (method) {
       case 'POST':
@@ -94,11 +134,31 @@ export class OperationLogInterceptor implements NestInterceptor {
     }
   }
 
+  private inferPlatformAction(method: string): PlatformOperationAction {
+    switch (method) {
+      case 'POST':
+        return PlatformOperationAction.CREATE;
+      case 'PUT':
+      case 'PATCH':
+        return PlatformOperationAction.UPDATE;
+      case 'DELETE':
+        return PlatformOperationAction.DELETE;
+      default:
+        return PlatformOperationAction.OTHER;
+    }
+  }
+
   private inferModule(path: string): string {
     // 从路径前缀推断模块，如 /products → product
     const segments = this.stripApiPrefix(path).split('/').filter(Boolean);
     const raw = segments[0] || 'unknown';
     // 去尾部的 s，如 products → product
+    return raw.endsWith('s') ? raw.slice(0, -1) : raw;
+  }
+
+  private inferPlatformModule(path: string): string {
+    const segments = this.stripApiPrefix(path).split('/').filter(Boolean);
+    const raw = segments[0] === 'platform' ? (segments[1] || 'platform') : (segments[0] || 'unknown');
     return raw.endsWith('s') ? raw.slice(0, -1) : raw;
   }
 
@@ -111,6 +171,7 @@ export class OperationLogInterceptor implements NestInterceptor {
     const normalizedPath = this.stripApiPrefix(path);
     const skipPatterns = [
       /^\/?auth\//,
+      /^\/?platform\/auth\//,
       /^\/?files\//,
       /^\/?system-logs\//,
       /^\/?upload-records\//,
@@ -121,6 +182,10 @@ export class OperationLogInterceptor implements NestInterceptor {
       return false;
     }
     return true;
+  }
+
+  private isPlatformPath(path: string): boolean {
+    return /^\/?platform\//.test(this.stripApiPrefix(path));
   }
 
   private sanitizeBody(body: any): any {

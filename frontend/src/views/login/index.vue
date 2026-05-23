@@ -15,6 +15,9 @@
         size="large"
         @keydown.enter.prevent="handleLogin"
       >
+        <n-form-item label="租户 ID" path="tenantId">
+          <n-input v-model:value="form.tenantId" name="tenant" placeholder="请输入租户 ID" autocomplete="organization" />
+        </n-form-item>
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="form.username" name="username" placeholder="请输入用户名" autocomplete="username" />
         </n-form-item>
@@ -51,6 +54,7 @@ import { useThemeStore } from '@/store/modules/theme'
 import type { FormInst, FormRules } from 'naive-ui'
 import { useMessage } from 'naive-ui'
 import ThemeSchemaSwitch from '@/components/common/ThemeSchemaSwitch.vue'
+import { getTenantId, normalizeTenantId, setTenantId } from '@/utils/tenant'
 
 const router = useRouter()
 const route = useRoute()
@@ -60,11 +64,15 @@ const formRef = ref<FormInst>()
 const message = useMessage()
 
 const form = reactive({
+  tenantId: getTenantId(),
   username: '',
   password: ''
 })
 
 const rules: FormRules = {
+  tenantId: [
+    { required: true, message: '请输入租户 ID', trigger: 'blur' }
+  ],
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, message: '用户名至少3位', trigger: 'blur' }
@@ -81,6 +89,13 @@ const handleLogin = async () => {
 
   await formRef.value.validate(async (errors) => {
     if (!errors) {
+      const tenantId = normalizeTenantId(form.tenantId)
+      if (!tenantId) {
+        message.error('租户 ID 必须是正整数')
+        return
+      }
+
+      setTenantId(tenantId)
       const success = await authStore.login(form.username, form.password)
       if (success) {
         const redirect = route.query.redirect as string || '/dashboard'

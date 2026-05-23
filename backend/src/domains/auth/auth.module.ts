@@ -7,10 +7,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { CryptoKeysService } from './services/crypto-keys.service';
 import { LoginThrottleService } from './services/login-throttle.service';
+import { SaasModule } from '@/domains/saas/saas.module';
 
 @Module({
   imports: [
     UsersModule,
+    SaasModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-secret-key',

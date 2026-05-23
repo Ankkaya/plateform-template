@@ -55,6 +55,9 @@ describe('AuthService refresh tokens', () => {
       validateToken: jest.fn().mockResolvedValue(true),
       deleteUserTokens: jest.fn().mockResolvedValue(undefined),
     };
+    const tenantAccess = {
+      assertTenantUsable: jest.fn().mockResolvedValue(undefined),
+    };
 
     const service = new AuthService(
       usersService as any,
@@ -63,9 +66,10 @@ describe('AuthService refresh tokens', () => {
       loginThrottle as any,
       prisma as any,
       redis as any,
+      tenantAccess as any,
     );
 
-    return { service, usersService, jwtService, cryptoKeys, loginThrottle, prisma, redis };
+    return { service, usersService, jwtService, cryptoKeys, loginThrottle, prisma, redis, tenantAccess };
   }
 
   it('returns an access token and refresh token after registration', async () => {
@@ -86,7 +90,7 @@ describe('AuthService refresh tokens', () => {
   });
 
   it('returns the full user profile with roles after login', async () => {
-    const { service, usersService, cryptoKeys, loginThrottle, prisma } = createService();
+    const { service, usersService, cryptoKeys, loginThrottle, prisma, tenantAccess } = createService();
     const compareSpy = jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true);
 
     const result = await service.login(
@@ -96,6 +100,7 @@ describe('AuthService refresh tokens', () => {
     );
 
     expect(loginThrottle.assertNotLocked).toHaveBeenCalledWith('admin', '127.0.0.1');
+    expect(tenantAccess.assertTenantUsable).toHaveBeenCalledWith(1);
     expect(cryptoKeys.decryptLoginPayload).toHaveBeenCalledWith('encrypted-secret');
     expect(usersService.findByUsername).toHaveBeenCalledWith('admin');
     expect(compareSpy).toHaveBeenCalledWith('secret', 'hashed-secret');
@@ -121,11 +126,12 @@ describe('AuthService refresh tokens', () => {
   });
 
   it('issues a new token pair and logs a successful refresh', async () => {
-    const { service, usersService, prisma, redis } = createService();
+    const { service, usersService, prisma, redis, tenantAccess } = createService();
 
     const result = await service.refresh('valid-refresh-token', '127.0.0.1', 'test-agent');
 
     expect(redis.validateToken).toHaveBeenCalledWith(1, 1, 'valid-refresh-token', 'refresh');
+    expect(tenantAccess.assertTenantUsable).toHaveBeenCalledWith(1);
     expect(usersService.findById).toHaveBeenCalledWith(userWithRoles.id);
     expect(result).toMatchObject({
       user: userWithRoles,

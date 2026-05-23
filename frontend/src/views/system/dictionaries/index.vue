@@ -222,7 +222,7 @@ import type {
   DictionaryType,
 } from '@/types'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
-import { autoFitTableColumns, createActionColumn } from '@/utils/table'
+import { autoFitTableColumns, createActionColumn, createIndexColumn } from '@/utils/table'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -327,6 +327,7 @@ const renderStatus = (isEnabled: boolean) => {
 }
 
 const baseTypeColumns = autoFitTableColumns<DictionaryType>([
+  createIndexColumn<DictionaryType>(() => (typePagination.page - 1) * typePagination.pageSize),
   { title: '名称', key: 'name' },
   { title: '编码', key: 'code' },
   {
@@ -373,6 +374,7 @@ const baseTypeColumns = autoFitTableColumns<DictionaryType>([
 ])
 
 const baseItemColumns = autoFitTableColumns<DictionaryItem>([
+  createIndexColumn<DictionaryItem>(),
   { title: '标签', key: 'label' },
   { title: '值', key: 'value' },
   {

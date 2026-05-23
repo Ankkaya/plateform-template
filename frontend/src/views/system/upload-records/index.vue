@@ -49,6 +49,7 @@ import PageSearchCard from '@/components/common/PageSearchCard.vue';
 import PageTableCard from '@/components/common/PageTableCard.vue';
 import QueryForm from '@/components/common/QueryForm.vue';
 import { getUploadRecords, type UploadRecord } from '@/api/upload-records';
+import { createIndexColumn } from '@/utils/table';
 
 const statusOptions = [
   { label: '正常', value: 'ACTIVE' },
@@ -93,7 +94,7 @@ function isImage(mimeType: string): boolean {
 }
 
 const columns: DataTableColumns<UploadRecord> = [
-  { title: 'ID', key: 'id', width: 60 },
+  createIndexColumn<UploadRecord>(() => (pagination.page - 1) * pagination.pageSize),
   { title: '用户ID', key: 'userId', width: 80 },
   {
     title: '预览',

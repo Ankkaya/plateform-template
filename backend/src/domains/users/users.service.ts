@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { IconAssetsService } from '@/infrastructure/icon-assets/icon-assets.service';
+import { QuotaService } from '@/domains/saas/quota.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserVo, UserWithRolesVo } from '@/users/vo';
@@ -11,9 +12,12 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private readonly iconAssetsService: IconAssetsService,
+    private readonly quotaService: QuotaService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
+    await this.quotaService.assertCanCreateUser();
+
     // 检查用户名是否存在（排除已删除的用户）
     const existingUser = await this.prisma.user.findFirst({
       where: this.prisma.withTenantWhere({
@@ -81,7 +85,7 @@ export class UsersService {
           where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
             },
           },
         },
@@ -272,7 +276,7 @@ export class UsersService {
           where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
             },
           },
         },
@@ -350,10 +354,10 @@ export class UsersService {
           where: { tenantId, deletedAt: null },
           include: {
             menus: {
-              where: { tenantId, deletedAt: null },
+              where: { tenantId, deletedAt: null, isTenantGranted: true },
               include: {
                 children: {
-                  where: { tenantId, deletedAt: null },
+                  where: { tenantId, deletedAt: null, isTenantGranted: true },
                 },
               },
             },

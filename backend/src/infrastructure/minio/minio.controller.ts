@@ -20,6 +20,7 @@ import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
 import { MinioService } from './minio.service';
 import { BufferedFile } from './dto/file.dto';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
+import { QuotaService } from '@/domains/saas/quota.service';
 import { Request } from '@nestjs/common';
 
 @ApiTags('后台接口/文件存储')
@@ -45,6 +46,7 @@ export class MinioController {
   constructor(
     private readonly minioService: MinioService,
     private readonly prisma: PrismaService,
+    private readonly quotaService: QuotaService,
   ) {}
 
   /**
@@ -77,6 +79,7 @@ export class MinioController {
     @Request() req?: any,
   ): Promise<{ filename: string; objectKey: string; url: string; etag: string }> {
     this.validateUploadFile(file);
+    await this.quotaService.assertCanUploadBytes(file.size);
 
     const result = await this.minioService.uploadFile(file, this.withTenantPath(path));
 
@@ -141,6 +144,8 @@ export class MinioController {
     }
 
     files.forEach(file => this.validateUploadFile(file));
+    const totalBytes = files.reduce((total, file) => total + file.size, 0);
+    await this.quotaService.assertCanUploadBytes(totalBytes);
 
     const results = await this.minioService.uploadFiles(files, this.withTenantPath(path));
 

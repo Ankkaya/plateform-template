@@ -18,13 +18,16 @@ describe('JwtStrategy', () => {
     const tenantContext = {
       requireTenantId: jest.fn().mockReturnValue(1),
     };
+    const tenantAccess = {
+      assertTenantUsable: jest.fn().mockResolvedValue(undefined),
+    };
 
-    const strategy = new JwtStrategy(usersService as any, redis as any, tenantContext as any);
-    return { strategy, usersService, redis, tenantContext };
+    const strategy = new JwtStrategy(usersService as any, redis as any, tenantContext as any, tenantAccess as any);
+    return { strategy, usersService, redis, tenantContext, tenantAccess };
   }
 
   it('accepts the request when the access token is cached in redis', async () => {
-    const { strategy, redis } = createStrategy();
+    const { strategy, redis, tenantAccess } = createStrategy();
     const req = {
       headers: {
         authorization: 'Bearer access-token',
@@ -36,6 +39,7 @@ describe('JwtStrategy', () => {
       sub: 1,
       userId: 1,
     });
+    expect(tenantAccess.assertTenantUsable).toHaveBeenCalledWith(1);
     expect(redis.validateToken).toHaveBeenCalledWith(1, 1, 'access-token', 'access');
   });
 

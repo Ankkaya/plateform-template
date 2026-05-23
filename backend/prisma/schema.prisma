@@ -10,13 +10,20 @@ datasource db {
 
 // 租户模型
 model Tenant {
-  id        Int       @id @default(autoincrement())
-  name      String
-  code      String    @unique
-  isEnabled Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  id           Int          @id @default(autoincrement())
+  name         String
+  code         String       @unique
+  status       TenantStatus @default(ACTIVE)
+  isEnabled    Boolean      @default(true)
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  logoUrl      String?
+  domain       String?
+  remark       String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
 
   users            User[]
   roles            Role[]
@@ -27,9 +34,11 @@ model Tenant {
   operationLogs   OperationLog[]
   loginLogs       LoginLog[]
   uploadRecords   UploadRecord[]
+  subscription    TenantSubscription?
 
   @@index([deletedAt])
   @@index([isEnabled])
+  @@index([status])
 }
 
 // 用户模型
@@ -91,6 +100,7 @@ model Menu {
   parentId    Int?
   order       Int       @default(0)
   hidden      Boolean   @default(false)
+  isTenantGranted Boolean @default(true)
   type        String    @default("menu") // menu | button | iframe
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -107,6 +117,7 @@ model Menu {
   @@index([tenantId])
   @@index([deletedAt])
   @@index([permission])
+  @@index([isTenantGranted])
 }
 
 // ==================== 系统设施 ====================
@@ -258,6 +269,90 @@ model UploadRecord {
   @@index([refId])
 }
 
+// ==================== SaaS 平台设施 ====================
+
+model PlatformUser {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  password     String
+  name         String?
+  email        String?   @unique
+  isEnabled    Boolean   @default(true)
+  isSuperAdmin Boolean   @default(false)
+  permissions  Json      @default("[]")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  operationLogs PlatformOperationLog[]
+
+  @@index([deletedAt])
+  @@index([isEnabled])
+}
+
+model SaasPlan {
+  id                Int       @id @default(autoincrement())
+  name              String
+  code              String    @unique
+  description       String?
+  priceCents        Int       @default(0)
+  userLimit         Int?
+  storageLimitBytes BigInt?
+  durationDays      Int       @default(365)
+  isEnabled         Boolean   @default(true)
+  sort              Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  subscriptions TenantSubscription[]
+
+  @@index([deletedAt])
+  @@index([isEnabled])
+  @@index([sort])
+}
+
+model TenantSubscription {
+  id                        Int                @id @default(autoincrement())
+  tenantId                  Int                @unique
+  planId                    Int
+  status                    SubscriptionStatus @default(ACTIVE)
+  startsAt                  DateTime           @default(now())
+  expiresAt                 DateTime?
+  canceledAt                DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  deletedAt                 DateTime?
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id])
+  plan   SaasPlan @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([deletedAt])
+}
+
+model PlatformOperationLog {
+  id             Int                     @id @default(autoincrement())
+  platformUserId Int?
+  username       String?
+  action         PlatformOperationAction
+  module         String?
+  targetId       String?
+  description    String?
+  requestBody    String?
+  success        Boolean                 @default(true)
+  error          String?
+  createdAt      DateTime                @default(now())
+
+  platformUser PlatformUser? @relation(fields: [platformUserId], references: [id])
+
+  @@index([platformUserId])
+  @@index([createdAt])
+  @@index([module])
+}
+
 // ==================== 枚举 ====================
 
 enum LogAction {
@@ -276,4 +371,24 @@ enum LoginLogType {
   LOGOUT
   REFRESH
   REGISTER
+}
+
+enum TenantStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum PlatformOperationAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  OTHER
 }

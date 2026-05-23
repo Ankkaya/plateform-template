@@ -107,7 +107,7 @@ import type { Role, Menu } from '@/types'
 import PageToolbar from '@/components/common/PageToolbar.vue'
 import PageTableCard from '@/components/common/PageTableCard.vue'
 import { useTableColumnSettings } from '@/composables/useTableColumnSettings'
-import { autoFitTableColumns, createActionColumn } from '@/utils/table'
+import { autoFitTableColumns, createActionColumn, createIndexColumn } from '@/utils/table'
 import { useAuthStore } from '@/store'
 import { exportExcel } from '@/utils/export'
 
@@ -163,7 +163,7 @@ const menuTreeOptions = computed<TreeOption[]>(() => convertToTreeOptions(menus.
 const createColumns = (): DataTableColumns<Role> => {
   return autoFitTableColumns([
     { type: 'selection', width: 48, fixed: 'left' },
-    { title: 'ID', key: 'id' },
+    createIndexColumn<Role>(),
     { title: '角色名称', key: 'name' },
     { title: '角色编码', key: 'code' },
     {

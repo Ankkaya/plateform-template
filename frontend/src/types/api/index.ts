@@ -21,6 +21,14 @@ export type {
   AuthResponse,
 } from './auth.api';
 
+// 平台认证 / SaaS API 类型
+export type {
+  PlatformAuthApi,
+  PlatformSaasApi,
+  PlatformLoginParams,
+  PlatformAuthResponse,
+} from './platform.api';
+
 // 用户 API 类型
 export type {
   UserApi,

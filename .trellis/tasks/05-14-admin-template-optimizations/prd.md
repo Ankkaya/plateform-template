@@ -32,6 +32,7 @@ Improve this backend admin system template across five areas: foundation stabili
 - Phase 3 scope selected: Module generator. This adds a root `pnpm generate:module` command that creates backend/frontend CRUD skeleton files and prints registration/menu-permission follow-up steps. It intentionally does not modify Prisma schema, app registration, router registration, or seed data automatically.
 - Phase 4 scope selected: Table column settings. This adds a reusable frontend-only column visibility setting utility/component and connects it to users, roles, and dictionaries. It intentionally stores preferences in `localStorage` only and does not add server-side profile sync.
 - Phase 5 scope selected: Refresh-token frontend integration. This wires the existing backend refresh-token primitives into a real `/auth/refresh` contract, returns refresh tokens from login/register, stores both tokens on the frontend, retries one failed 401 request after refresh, and clears auth state when refresh fails. It intentionally does not add database-backed token rotation/revocation in this phase.
+- Phase 6 scope selected: Full SaaS foundation. The project already has tenant-scoped database/request/token isolation; this phase should turn that foundation into an operator-facing SaaS substrate with tenant lifecycle, internal plan/subscription metadata, quotas, tenant selection, and tenant bootstrap. Real payment-provider integration is deferred.
 
 ## Requirements (evolving)
 
@@ -88,6 +89,43 @@ Improve this backend admin system template across five areas: foundation stabili
   - Store access and refresh tokens consistently on the frontend.
   - Retry one 401 response after a successful refresh and redirect to login when refresh is missing or invalid.
 
+### Phase 6: Full SaaS foundation
+
+- Turn the existing tenant isolation foundation into a usable SaaS platform capability.
+- Existing foundation:
+  - `Tenant` exists in Prisma and tenant-owned tables carry `tenantId`.
+  - Backend requests resolve tenant context from `tenant_id` / `x-tenant-id`.
+  - Auth tokens and Redis token keys are tenant-scoped.
+  - Frontend API requests attach `tenant_id`, defaulting to tenant `1`.
+- Selected direction:
+  - Build a full SaaS foundation rather than only tenant CRUD.
+  - Start with internal plan/subscription management: platform operators manually create plans, assign tenant subscriptions, adjust trial/end dates, and set quotas. No Stripe/WeChat/Alipay integration in this phase.
+  - Use a separate platform-operator identity boundary. Platform users, platform auth, and platform permissions are independent from tenant-scoped `User` / `Role` / `Menu` records.
+  - Enforce user-count and storage-space quotas in this phase. Other quota dimensions can be stored/displayed for future use but should not block business operations yet.
+  - Platform operators provide the initial tenant admin username, name, email, and password when creating a tenant. Tenant bootstrap runs in one backend transaction and creates the tenant, subscription, baseline RBAC/menu/dictionary/settings data, and the initial tenant admin.
+  - Keep the platform console inside the existing Vue app under `/platform/*`, but keep platform and tenant identity contexts explicit. Reuse shared request/auth infrastructure through factories/helpers, while exposing separate `tenantApi` and `platformApi` instances and separate tenant/platform auth namespaces.
+  - Strictly block disabled, deleted, and expired tenants. Such tenants cannot log in, cannot refresh tokens, and already-authenticated tenant API requests fail with a clear tenant-status error that causes the frontend to clear tenant auth and return to login.
+  - Seed the first platform operator through `prisma seed`. Default username is `platform_admin`; password can be overridden with environment variables and falls back to `123456` for local development.
+- Candidate items:
+  - `PlatformUser` / platform authentication for global SaaS operations.
+  - Platform permissions and guards that do not depend on `tenant_id`.
+  - Tenant CRUD and status management APIs.
+  - Plan/package management with limits and feature flags.
+  - Tenant subscription metadata such as plan, status, start/end dates, trial period, renewal state, and manual extension.
+  - Quota enforcement points for users/storage/modules where the current template can support them without external billing.
+  - User-count quota enforcement when creating tenant users.
+  - Storage-space quota enforcement for MinIO upload endpoints based on tenant upload-record usage plus current upload size.
+  - Admin tenant management page.
+  - Platform console routes such as `/platform/login`, `/platform/tenants`, `/platform/plans`, and `/platform/subscriptions`.
+  - Tenant selection/switching before login and after login.
+  - Tenant bootstrap that provisions an admin user, default roles, menus, dictionaries, and settings.
+  - Tenant status enforcement for disabled/deleted tenants.
+  - Tenant-level settings such as branding/name/logo and optional domain metadata.
+  - Operation/login logs remain tenant-scoped; platform tenant-management operations should be auditable.
+  - Tests for tenant creation, switching, and isolation guardrails.
+- Pending decision:
+  - None before final design confirmation.
+
 ## Acceptance Criteria (evolving)
 
 - [x] `start-local.sh` no longer deletes Docker volumes by default.
@@ -124,6 +162,26 @@ Improve this backend admin system template across five areas: foundation stabili
 - [x] Backend exposes refresh-token renewal and logs refresh attempts.
 - [x] Frontend stores access/refresh tokens and retries one 401 after refresh.
 - [x] Refresh failure clears auth storage and sends the user back to login.
+- [x] Phase 6 has an explicit full-SaaS-foundation scope before implementation starts.
+- [x] Platform operators authenticate through a tenant-independent platform identity.
+- [x] Seed creates an initial platform operator account for local development, with environment-variable overrides for credentials.
+- [x] Platform UI lives under `/platform/*` in the existing Vue app and uses explicit `platformApi` / platform auth state rather than URL-string request guessing.
+- [x] Tenant lifecycle management is available to platform operators.
+- [x] Plan/subscription/quota metadata is modeled and surfaced in admin UI.
+- [x] Plans only expose subscription duration for period control; trial periods are modeled as short-duration plans.
+- [x] Subscription management is read-only except for canceling an active subscription; expired status is derived from the subscription end date.
+- [x] Tenant user creation is blocked when the tenant reaches the subscribed user-count quota.
+- [x] File upload is blocked when the tenant would exceed the subscribed storage-space quota.
+- [x] New tenant bootstrap creates a usable tenant with admin user and baseline RBAC/menu/dictionary/settings data.
+- [x] Platform tenant creation accepts explicit initial tenant-admin credentials and does not return generated passwords.
+- [x] Platform operators can edit the menu/button permission ceiling granted to each tenant.
+- [x] Platform operators can manage the global system menu/button catalog from the platform console through platform auth.
+- [x] Tenant role-menu assignment and tenant permission checks cannot exceed the platform-granted ceiling.
+- [x] Platform subscription date inputs use date-range picker controls, show selected days/month/year summaries, and round submitted times to full-day boundaries.
+- [x] Tenant permission ceiling UI uses permission-sync wording and explains the post-sync cleanup actions.
+- [x] Tenant selection works before login and when switching tenant context.
+- [x] Disabled/deleted/expired tenants are blocked consistently.
+- [x] Disabled/deleted/expired tenants cannot login, cannot refresh tokens, and cannot continue using existing tenant API tokens.
 
 ## Definition of Done (team quality bar)
 
@@ -136,7 +194,8 @@ Improve this backend admin system template across five areas: foundation stabili
 ## Out of Scope (explicit)
 
 - Building all five phases in one uninterrupted code batch.
-- Adding SaaS multi-tenancy unless chosen explicitly for Phase 2 or later.
+- Organization/departments and field-level permissions unless selected as a later SaaS sub-phase.
+- Real payment collection, invoice reconciliation, payment webhooks, custom domains, and SSO until explicitly included in a later SaaS phase.
 - Replacing the current Vue/Nest/Prisma stack.
 - Production deployment redesign unless chosen explicitly in Phase 5.
 

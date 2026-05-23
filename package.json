@@ -5,7 +5,14 @@
   "scripts": {
     "generate:module": "node scripts/generate-module.mjs",
     "test:generator": "node --test scripts/generate-module.test.mjs",
+    "test:table": "node --experimental-strip-types frontend/src/utils/table.test.mjs",
     "test:table-columns": "node --experimental-strip-types frontend/src/utils/table-column-settings.test.mjs",
-    "test:auth-refresh": "node --experimental-strip-types frontend/src/utils/auth-refresh.test.mjs"
+    "test:auth-refresh": "node --experimental-strip-types frontend/src/utils/auth-refresh.test.mjs",
+    "test:tenant": "node --experimental-strip-types frontend/src/utils/tenant.test.mjs",
+    "test:platform-auth": "node --experimental-strip-types frontend/src/utils/platform-auth.test.mjs",
+    "test:platform-permissions": "node --experimental-strip-types frontend/src/utils/platform-permissions.test.mjs",
+    "test:platform-navigation": "node --experimental-strip-types frontend/src/utils/platform-navigation.test.mjs",
+    "test:tenant-menu-grants": "node --experimental-strip-types frontend/src/utils/tenant-menu-grants.test.mjs",
+    "test:platform-date-range": "node --experimental-strip-types frontend/src/utils/platform-date-range.test.mjs"
   }
 }
