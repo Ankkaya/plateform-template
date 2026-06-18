@@ -21,6 +21,6 @@ import { SaasModule } from '@/domains/saas/saas.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, CryptoKeysService, LoginThrottleService],
-  exports: [AuthService],
+  exports: [AuthService, CryptoKeysService],
 })
 export class AuthModule {}

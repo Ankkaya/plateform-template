@@ -1,14 +1,6 @@
 import forge from 'node-forge'
 import api from '@/api/request'
-
-/**
- * 登录密码 RSA 加密工具
- *
- * 流程：
- *  1. 首次调用时拉取 /auth/public-key 获取后端 RSA 公钥并缓存（默认 10 分钟）
- *  2. 拼接 `${password}::${timestamp}` 后用 RSA-OAEP-SHA256 加密为 base64
- *  3. 服务端解密后会校验 timestamp 在 5 分钟内，防止重放
- */
+import { platformApi } from '@/api/request'
 
 interface PublicKeyResponse {
   publicKey: string
@@ -17,13 +9,14 @@ interface PublicKeyResponse {
 
 interface CachedKey {
   publicKey: string
-  /** 客户端本地过期时间戳 */
   expiresAt: number
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 let cached: CachedKey | null = null
+let platformCached: CachedKey | null = null
 let pending: Promise<string> | null = null
+let platformPending: Promise<string> | null = null
 
 async function fetchPublicKey(): Promise<string> {
   if (cached && Date.now() < cached.expiresAt) {
@@ -44,6 +37,27 @@ async function fetchPublicKey(): Promise<string> {
       })
   }
   return pending
+}
+
+async function fetchPlatformPublicKey(): Promise<string> {
+  if (platformCached && Date.now() < platformCached.expiresAt) {
+    return platformCached.publicKey
+  }
+  if (!platformPending) {
+    platformPending = platformApi
+      .get<PublicKeyResponse>('/platform/auth/public-key')
+      .then((res) => {
+        platformCached = {
+          publicKey: res.publicKey,
+          expiresAt: Date.now() + CACHE_TTL_MS,
+        }
+        return res.publicKey
+      })
+      .finally(() => {
+        platformPending = null
+      })
+  }
+  return platformPending
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
@@ -95,13 +109,7 @@ function encryptWithForge(publicKey: string, payload: string): string {
   return forge.util.encode64(encrypted)
 }
 
-/**
- * RSA-OAEP-SHA256 加密登录密码
- * @param plain 明文密码
- * @returns base64 密文
- */
-export async function encryptPassword(plain: string): Promise<string> {
-  const publicKey = await fetchPublicKey()
+async function rsaEncrypt(publicKey: string, plain: string): Promise<string> {
   const payload = `${plain}::${Date.now()}`
   if (globalThis.crypto?.subtle) {
     return encryptWithWebCrypto(publicKey, payload)
@@ -109,7 +117,28 @@ export async function encryptPassword(plain: string): Promise<string> {
   return encryptWithForge(publicKey, payload)
 }
 
+/**
+ * RSA-OAEP-SHA256 加密登录密码（租户端）
+ * @param plain 明文密码
+ * @returns base64 密文
+ */
+export async function encryptPassword(plain: string): Promise<string> {
+  const publicKey = await fetchPublicKey()
+  return rsaEncrypt(publicKey, plain)
+}
+
+/**
+ * RSA-OAEP-SHA256 加密登录密码（平台端）
+ * @param plain 明文密码
+ * @returns base64 密文
+ */
+export async function encryptPlatformPassword(plain: string): Promise<string> {
+  const publicKey = await fetchPlatformPublicKey()
+  return rsaEncrypt(publicKey, plain)
+}
+
 /** 测试用：清除本地缓存（例如服务端密钥轮换） */
 export function clearPublicKeyCache(): void {
   cached = null
+  platformCached = null
 }

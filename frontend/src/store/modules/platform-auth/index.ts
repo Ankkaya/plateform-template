@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import router from '@/router'
-import { getCurrentPlatformUser, login as loginApi, logout as logoutApi } from '@/api/platform-auth'
+import { getCurrentPlatformUser, login as loginApi } from '@/api/platform-auth'
 import type { PlatformUser } from '@/types'
 import {
   clearPlatformAuthToken,
@@ -9,6 +9,7 @@ import {
   setPlatformAuthToken,
 } from '@/utils/platform-auth'
 import { hasPlatformPermission } from '@/utils/platform-permissions'
+import { encryptPlatformPassword } from '@/utils/crypto'
 
 export const usePlatformAuthStore = defineStore('platform-auth', () => {
   const token = ref(getPlatformAuthToken())
@@ -24,7 +25,8 @@ export const usePlatformAuthStore = defineStore('platform-auth', () => {
   const login = async (username: string, password: string) => {
     loading.value = true
     try {
-      const res = await loginApi({ username, password })
+      const cipher = await encryptPlatformPassword(password)
+      const res = await loginApi({ username, password: cipher })
       token.value = res.token
       user.value = res.user
       setPlatformAuthToken(res.token)

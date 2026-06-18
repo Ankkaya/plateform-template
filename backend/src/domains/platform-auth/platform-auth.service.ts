@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException, UnauthorizedException } from 
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { RedisService } from '@/infrastructure/redis/redis.service';
+import { CryptoKeysService } from '../auth/services/crypto-keys.service';
 import { PlatformLoginDto } from './dto/platform-login.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -30,9 +31,12 @@ export class PlatformAuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly redis: RedisService,
+    private readonly cryptoKeys: CryptoKeysService,
   ) {}
 
   async login(dto: PlatformLoginDto) {
+    const plainPassword = this.cryptoKeys.decryptLoginPayload(dto.password);
+
     const user = await this.prisma.platformUser.findFirst({
       where: {
         username: dto.username,
@@ -40,7 +44,7 @@ export class PlatformAuthService {
       },
     }) as PlatformUserEntity | null;
 
-    const passwordValid = !!user && user.isEnabled && await bcrypt.compare(dto.password, user.password);
+    const passwordValid = !!user && user.isEnabled && await bcrypt.compare(plainPassword, user.password);
     if (!user || !passwordValid) {
       throw new UnauthorizedException('用户名或密码错误');
     }

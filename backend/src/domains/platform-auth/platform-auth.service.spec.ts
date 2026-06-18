@@ -27,10 +27,25 @@ describe('PlatformAuthService', () => {
       setPlatformToken: jest.fn().mockResolvedValue(undefined),
       deletePlatformUserTokens: jest.fn().mockResolvedValue(undefined),
     };
-    const service = new PlatformAuthService(prisma as any, jwtService as any, redis as any);
+    const cryptoKeys = {
+      decryptLoginPayload: jest.fn().mockImplementation((cipher: string) => cipher),
+    };
+    const service = new PlatformAuthService(prisma as any, jwtService as any, redis as any, cryptoKeys as any);
 
-    return { service, prisma, jwtService, redis };
+    return { service, prisma, jwtService, redis, cryptoKeys };
   }
+
+  it('decrypts password before bcrypt compare', async () => {
+    const { service, cryptoKeys } = createService();
+    const compareSpy = jest.spyOn(require('bcrypt'), 'compare').mockResolvedValue(true);
+
+    await service.login({ username: 'platform_admin', password: 'encrypted-secret' });
+
+    expect(cryptoKeys.decryptLoginPayload).toHaveBeenCalledWith('encrypted-secret');
+    expect(compareSpy).toHaveBeenCalledWith('encrypted-secret', 'hashed-secret');
+
+    compareSpy.mockRestore();
+  });
 
   it('logs in an enabled platform user and caches the platform token', async () => {
     const { service, jwtService, redis } = createService();
